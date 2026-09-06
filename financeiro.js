@@ -1,7 +1,7 @@
 // --- CONFIGURAÇÃO DO SUPABASE ---
 const SUPABASE_URL = 'https://toewirjnljlnopmsgsjn.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRvZXdpcmpubGpsbm9wbXNnc2puIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3MTgzMTgsImV4cCI6MjEwNDI5NDMxOH0.upa1J5Pr-eN4j55UZOBkVh4OkigSHB5xdraRJFbfWUo';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // --- ESTADO ---
 let state = {
@@ -51,7 +51,7 @@ function switchTab(tabId, element) {
     }
 }
 
-// --- INICIALIZAÇÃO (BUSCA DADOS DO SUPABASE) ---
+// --- INICIALIZAÇÃO ---
 async function initFinanceApp() {
     await loadFromSupabase();
     renderMonthTabs();
@@ -62,16 +62,11 @@ async function initFinanceApp() {
 
 async function loadFromSupabase() {
     try {
-        // Buscar Transações
-        const { data: transData } = await supabase.from('transacoes').select('*').order('criado_em', { ascending: false });
-        // Buscar Caixinhas
-        const { data: caixData } = await supabase.from('caixinhas').select('*').order('criado_em', { ascending: false });
-        // Buscar Categorias
-        const { data: catData } = await supabase.from('categorias').select('nome');
-        // Buscar Histórico
-        const { data: histData } = await supabase.from('historico').select('*').order('criado_em', { ascending: false });
+        const { data: transData } = await supabaseClient.from('transacoes').select('*').order('criado_em', { ascending: false });
+        const { data: caixData } = await supabaseClient.from('caixinhas').select('*').order('criado_em', { ascending: false });
+        const { data: catData } = await supabaseClient.from('categorias').select('nome');
+        const { data: histData } = await supabaseClient.from('historico').select('*').order('criado_em', { ascending: false });
 
-        // Mapear para o formato do estado local
         state.transactions = transData ? transData.map(t => ({
             id: t.id, type: t.tipo, date: t.data, title: t.titulo, category: t.categoria, amount: parseFloat(t.valor), recurrence: t.recorrencia
         })) : [];
@@ -88,21 +83,16 @@ async function loadFromSupabase() {
 
     } catch (error) {
         console.error('Erro ao carregar dados do Supabase:', error);
-        alert('Erro ao conectar com o banco de dados. Verifique sua conexão.');
     }
 }
 
-// --- HISTÓRICO (SALVA NO SUPABASE) ---
+// --- HISTÓRICO ---
 async function addToHistory(action, details) {
     if (currentUserRole !== 'admin') return;
     const now = new Date().toISOString();
-    
-    // Adiciona localmente para atualização instantânea da tela
     state.history.unshift({ timestamp: new Date().toLocaleString('pt-BR'), action, details });
     if (state.history.length > 100) state.history.pop();
-
-    // Envia para o Supabase
-    await supabase.from('historico').insert([{ acao: action, detalhes: details, criado_em: now }]);
+    await supabaseClient.from('historico').insert([{ acao: action, detalhes: details, criado_em: now }]);
 }
 
 function renderHistory() {
@@ -238,7 +228,7 @@ function openDayTransModal(dateStr, type) {
                 </div>
                 <div style="display:flex; gap:0.5rem;">
                     <button class="btn btn-warning btn-sm" onclick="editTransaction(${t.id})">✏️</button>
-                    <button class="btn btn-danger btn-sm" onclick="deleteTransaction(${t.id})">🗑️</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteTransaction(${t.id})">️</button>
                 </div>
             </li>
         `).join('');
@@ -255,20 +245,17 @@ function getTransactionsForMonth(year, month) {
 // --- GRÁFICO ---
 function renderChart(transactions) {
     const ctx = document.getElementById('financeChart').getContext('2d');
-    
     const categoriesData = {};
     transactions.forEach(t => {
         if (!categoriesData[t.category]) categoriesData[t.category] = { entrada: 0, saida: 0 };
         if (t.type === 'entrada') categoriesData[t.category].entrada += t.amount;
         else categoriesData[t.category].saida += t.amount;
     });
-
     const labels = Object.keys(categoriesData);
     const dataEntrada = labels.map(l => categoriesData[l].entrada);
     const dataSaida = labels.map(l => categoriesData[l].saida);
 
     if (chartInstance) chartInstance.destroy();
-
     chartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -278,12 +265,7 @@ function renderChart(transactions) {
                 { label: 'Saídas', data: dataSaida, backgroundColor: '#ef4444', borderRadius: 4 }
             ]
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { position: 'top' } },
-            scales: { y: { beginAtZero: true } }
-        }
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true } } }
     });
 }
 
@@ -294,7 +276,6 @@ function renderCaixinhas(performance, year, month) {
         grid.innerHTML = '<p style="color:var(--text-muted)">Nenhuma caixinha criada.</p>';
         return;
     }
-
     const allocations = calculateAllocations(performance);
     const priorityNames = { muito: 'Muito Importante', importante: 'Importante', pouco: 'Pouco Importante' };
     const isAdmin = currentUserRole === 'admin';
@@ -302,7 +283,6 @@ function renderCaixinhas(performance, year, month) {
     grid.innerHTML = state.caixinhas.map(c => {
         const allocatedValue = allocations[c.id] || 0;
         const canAllocate = isAdmin && performance > 0 && allocatedValue > 0;
-
         return `
             <div class="caixinha-card priority-${c.priority}">
                 <div>
@@ -322,17 +302,13 @@ function renderCaixinhas(performance, year, month) {
 
 function calculateAllocations(performance) {
     if (performance <= 0) return {};
-    
     const priorities = { muito: 0.60, importante: 0.30, pouco: 0.10 };
     const allocations = {};
-
     for (const [priority, percent] of Object.entries(priorities)) {
         const group = state.caixinhas.filter(c => c.priority === priority).sort((a, b) => a.ranking - b.ranking);
         if (group.length === 0) continue;
-
         const totalPool = performance * percent;
         const totalWeight = group.reduce((sum, c) => sum + ((group.length + 1) - c.ranking), 0);
-
         group.forEach(c => {
             const weight = (group.length + 1) - c.ranking;
             allocations[c.id] = totalPool * (weight / totalWeight);
@@ -349,16 +325,13 @@ async function allocateCaixinha(id, value) {
     const today = new Date();
     const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     
-    // Adiciona transação no Supabase
-    const { data: newTrans } = await supabase.from('transacoes').insert([{
+    const { data: newTrans } = await supabaseClient.from('transacoes').insert([{
         tipo: 'saida', data: dateStr, titulo: `Reserva: ${caixinha.title}`, 
         categoria: 'Caixinhas', valor: value, recorrencia: 'nenhuma'
     }]).select().single();
 
-    // Atualiza saldo da caixinha no Supabase
-    await supabase.from('caixinhas').update({ saldo: caixinha.saldo + value }).eq('id', id);
+    await supabaseClient.from('caixinhas').update({ saldo: caixinha.saldo + value }).eq('id', id);
 
-    // Atualiza estado local
     if (newTrans) {
         state.transactions.push({ id: newTrans.id, type: 'saida', date: dateStr, title: `Reserva: ${caixinha.title}`, category: 'Caixinhas', amount: value, recurrence: 'nenhuma' });
     }
@@ -382,20 +355,16 @@ async function saveCaixinha() {
     if (editId) {
         const caixinha = state.caixinhas.find(c => c.id === parseFloat(editId));
         const oldSaldo = caixinha.saldo;
-        
-        await supabase.from('caixinhas').update({ titulo: title, prioridade: priority, ranking: ranking, saldo: saldo }).eq('id', parseFloat(editId));
-        
+        await supabaseClient.from('caixinhas').update({ titulo: title, prioridade: priority, ranking: ranking, saldo: saldo }).eq('id', parseFloat(editId));
         caixinha.title = title; caixinha.priority = priority; caixinha.ranking = ranking; caixinha.saldo = saldo;
         await addToHistory('Caixinha Editada', `"${caixinha.title}" - Saldo alterado de ${formatMoney(oldSaldo)} para ${formatMoney(saldo)}`);
     } else {
-        const { data: newCaix } = await supabase.from('caixinhas').insert([{ titulo: title, prioridade: priority, ranking: ranking, saldo: 0 }]).select().single();
-        
+        const { data: newCaix } = await supabaseClient.from('caixinhas').insert([{ titulo: title, prioridade: priority, ranking: ranking, saldo: 0 }]).select().single();
         if (newCaix) {
             state.caixinhas.push({ id: newCaix.id, title, priority, ranking, saldo: 0 });
             await addToHistory('Caixinha Criada', `Nova caixinha "${title}" (Prioridade: ${priority}, Ranking: ${ranking})`);
         }
     }
-
     closeModal('modalCaixinha');
     clearForm('modalCaixinha');
     renderTimeline();
@@ -428,7 +397,7 @@ async function saveTransaction() {
     if (!date || !title || isNaN(amount)) return alert('Preencha todos os campos!');
 
     if (editId) {
-        await supabase.from('transacoes').update({ 
+        await supabaseClient.from('transacoes').update({ 
             tipo: type, data: date, titulo: title, categoria: category, valor: amount, recorrencia: recurrence 
         }).eq('id', parseFloat(editId));
 
@@ -440,9 +409,7 @@ async function saveTransaction() {
     } else {
         const dates = generateRecurrenceDates(date, recurrence);
         const newTrans = dates.map(d => ({ tipo: type, data: d, titulo: title, categoria: category, valor: amount, recorrencia: recurrence }));
-        
-        const { data: inserted } = await supabase.from('transacoes').insert(newTrans).select();
-        
+        const { data: inserted } = await supabaseClient.from('transacoes').insert(newTrans).select();
         if (inserted) {
             inserted.forEach(t => {
                 state.transactions.push({ id: t.id, type: t.tipo, date: t.data, title: t.titulo, category: t.categoria, amount: parseFloat(t.valor), recurrence: t.recorrencia });
@@ -450,7 +417,6 @@ async function saveTransaction() {
             await addToHistory('Transação Adicionada', `${title} - ${formatMoney(amount)} em ${date} (${recurrence})`);
         }
     }
-
     renderTimeline();
     closeModal('modalTransaction');
     clearForm('modalTransaction');
@@ -460,9 +426,7 @@ function editTransaction(id) {
     if (currentUserRole !== 'admin') return;
     const trans = state.transactions.find(t => t.id === id);
     if (!trans) return;
-    
     closeModal('modalDayTrans');
-    
     document.getElementById('transEditId').value = trans.id;
     document.getElementById('transType').value = trans.type;
     document.getElementById('transDate').value = trans.date;
@@ -479,7 +443,6 @@ async function confirmDeleteTransaction() {
     if (currentUserRole !== 'admin') return;
     const editId = document.getElementById('transEditId').value;
     if (!editId) return;
-    
     if (confirm('⚠️ Tem certeza que deseja excluir esta transação? Esta ação não pode ser desfeita.')) {
         await deleteTransaction(parseFloat(editId));
     }
@@ -488,12 +451,9 @@ async function confirmDeleteTransaction() {
 async function deleteTransaction(id) {
     if (currentUserRole !== 'admin') return;
     const trans = state.transactions.find(t => t.id === id);
-    
-    await supabase.from('transacoes').delete().eq('id', id);
+    await supabaseClient.from('transacoes').delete().eq('id', id);
     state.transactions = state.transactions.filter(t => t.id !== id);
-    
     if (trans) await addToHistory('Transação Excluída', `${trans.title} - ${formatMoney(trans.amount)} em ${trans.date}`);
-    
     renderTimeline();
     closeModal('modalTransaction');
     closeModal('modalDayTrans');
@@ -503,11 +463,9 @@ async function deleteTransaction(id) {
 function generateRecurrenceDates(startDate, recurrence) {
     const dates = [startDate];
     if (recurrence === 'nenhuma') return dates;
-    
     const [y, m, d] = startDate.split('-').map(Number);
     const baseDate = new Date(y, m - 1, d);
     const daysInMonth = new Date(y, m, 0).getDate();
-
     if (recurrence === 'diaria') {
         for (let i = d + 1; i <= daysInMonth; i++) {
             dates.push(`${y}-${String(m).padStart(2, '0')}-${String(i).padStart(2, '0')}`);
@@ -527,7 +485,7 @@ async function addCategory() {
     if (currentUserRole !== 'admin') return;
     const cat = document.getElementById('newCategory').value;
     if (cat && !state.categories.includes(cat)) {
-        await supabase.from('categorias').insert([{ nome: cat }]);
+        await supabaseClient.from('categorias').insert([{ nome: cat }]);
         state.categories.push(cat);
         await addToHistory('Categoria Adicionada', `Nova categoria: "${cat}"`);
         updateCategorySelect();
@@ -550,7 +508,7 @@ function renderCategoryList() {
 }
 async function removeCategory(cat) {
     if (currentUserRole !== 'admin') return;
-    await supabase.from('categorias').delete().eq('nome', cat);
+    await supabaseClient.from('categorias').delete().eq('nome', cat);
     state.categories = state.categories.filter(c => c !== cat);
     await addToHistory('Categoria Removida', `Categoria "${cat}" removida`);
     updateCategorySelect();
@@ -561,15 +519,9 @@ async function removeCategory(cat) {
 async function exportData() {
     if (currentUserRole !== 'admin') return;
     let csv = 'type,id,date,title,category,amount,recurrence,priority,ranking,saldo\n';
-    state.transactions.forEach(t => {
-        csv += `transaction,${t.id},${t.date},"${t.title}","${t.category}",${t.amount},${t.recurrence},,,\n`;
-    });
-    state.caixinhas.forEach(c => {
-        csv += `caixinha,${c.id},,"${c.title}",,,${c.saldo},${c.priority},${c.ranking}\n`;
-    });
-    state.categories.forEach(c => {
-        csv += `category,0,,,"${c}",,,,,\n`;
-    });
+    state.transactions.forEach(t => { csv += `transaction,${t.id},${t.date},"${t.title}","${t.category}",${t.amount},${t.recurrence},,,\n`; });
+    state.caixinhas.forEach(c => { csv += `caixinha,${c.id},,"${c.title}",,,${c.saldo},${c.priority},${c.ranking}\n`; });
+    state.categories.forEach(c => { csv += `category,0,,,"${c}",,,,,\n`; });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -588,7 +540,6 @@ async function importData(event) {
     reader.onload = async function(e) {
         const text = e.target.result;
         const lines = text.split('\n').slice(1);
-        
         const newTrans = [], newCaix = [], newCats = [];
 
         lines.forEach(line => {
@@ -596,9 +547,7 @@ async function importData(event) {
             const cols = line.split(',');
             const type = cols[0];
             if (type === 'transaction') {
-                newTrans.push({ tipo: 'entrada', data: cols[2], titulo: cols[3].replace(/"/g, ''), categoria: cols[4].replace(/"/g, ''), valor: parseFloat(cols[5]), recorrencia: cols[6] });
-                // Ajuste fino para o tipo correto
-                newTrans[newTrans.length-1].tipo = cols[1] ? 'entrada' : 'entrada'; // simplificado, o ideal é mapear o tipo
+                newTrans.push({ tipo: cols[1] === 'entrada' ? 'entrada' : (cols[1] === 'saida' ? 'saida' : 'diario'), data: cols[2], titulo: cols[3].replace(/"/g, ''), categoria: cols[4].replace(/"/g, ''), valor: parseFloat(cols[5]), recorrencia: cols[6] });
             } else if (type === 'caixinha') {
                 newCaix.push({ titulo: cols[3].replace(/"/g, ''), prioridade: cols[6].trim(), ranking: parseInt(cols[7]) || 1, saldo: parseFloat(cols[5]) });
             } else if (type === 'category') {
@@ -606,14 +555,13 @@ async function importData(event) {
             }
         });
 
-        // Limpa tabelas e insere novos dados
-        await supabase.from('transacoes').delete().neq('id', 0);
-        await supabase.from('caixinhas').delete().neq('id', 0);
-        await supabase.from('categorias').delete().neq('id', 0);
+        await supabaseClient.from('transacoes').delete().neq('id', 0);
+        await supabaseClient.from('caixinhas').delete().neq('id', 0);
+        await supabaseClient.from('categorias').delete().neq('id', 0);
 
-        if (newTrans.length > 0) await supabase.from('transacoes').insert(newTrans);
-        if (newCaix.length > 0) await supabase.from('caixinhas').insert(newCaix);
-        if (newCats.length > 0) await supabase.from('categorias').insert(newCats);
+        if (newTrans.length > 0) await supabaseClient.from('transacoes').insert(newTrans);
+        if (newCaix.length > 0) await supabaseClient.from('caixinhas').insert(newCaix);
+        if (newCats.length > 0) await supabaseClient.from('categorias').insert(newCats);
 
         await addToHistory('Importação CSV', 'Dados importados com sucesso via CSV');
         await loadFromSupabase();
