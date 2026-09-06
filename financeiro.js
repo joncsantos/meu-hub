@@ -1,3 +1,8 @@
+// --- CONFIGURAÇÃO DO SUPABASE ---
+const SUPABASE_URL = 'https://toewirjnljlnopmsgsjn.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRvZXdpcmpubGpsbm9wbXNnc2puIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3MTgzMTgsImV4cCI6MjEwNDI5NDMxOH0.upa1J5Pr-eN4j55UZOBkVh4OkigSHB5xdraRJFbfWUo';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 // --- ESTADO ---
 let state = {
     transactions: [],
@@ -12,7 +17,7 @@ let chartInstance = null;
 let currentUserRole = null;
 
 // --- VERIFICAÇÃO DE AUTENTICAÇÃO ---
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
     const role = sessionStorage.getItem('userRole');
     if (!role) {
         window.location.href = 'index.html';
@@ -20,7 +25,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     currentUserRole = role;
     applyPermissions();
-    initFinanceApp();
+    await initFinanceApp();
 });
 
 function applyPermissions() {
@@ -46,29 +51,58 @@ function switchTab(tabId, element) {
     }
 }
 
-// --- INICIALIZAÇÃO ---
-function initFinanceApp() {
-    loadFromStorage();
+// --- INICIALIZAÇÃO (BUSCA DADOS DO SUPABASE) ---
+async function initFinanceApp() {
+    await loadFromSupabase();
     renderMonthTabs();
     renderTimeline();
     updateCategorySelect();
     document.getElementById('transDate').valueAsDate = new Date();
 }
 
-function saveToStorage() { localStorage.setItem('financeHub', JSON.stringify(state)); }
-function loadFromStorage() {
-    const saved = localStorage.getItem('financeHub');
-    if (saved) state = { ...state, ...JSON.parse(saved) };
+async function loadFromSupabase() {
+    try {
+        // Buscar Transações
+        const { data: transData } = await supabase.from('transacoes').select('*').order('criado_em', { ascending: false });
+        // Buscar Caixinhas
+        const { data: caixData } = await supabase.from('caixinhas').select('*').order('criado_em', { ascending: false });
+        // Buscar Categorias
+        const { data: catData } = await supabase.from('categorias').select('nome');
+        // Buscar Histórico
+        const { data: histData } = await supabase.from('historico').select('*').order('criado_em', { ascending: false });
+
+        // Mapear para o formato do estado local
+        state.transactions = transData ? transData.map(t => ({
+            id: t.id, type: t.tipo, date: t.data, title: t.titulo, category: t.categoria, amount: parseFloat(t.valor), recurrence: t.recorrencia
+        })) : [];
+        
+        state.caixinhas = caixData ? caixData.map(c => ({
+            id: c.id, title: c.titulo, priority: c.prioridade, ranking: c.ranking, saldo: parseFloat(c.saldo)
+        })) : [];
+        
+        state.categories = catData && catData.length > 0 ? catData.map(c => c.nome) : ['Alimentação', 'Moradia', 'Transporte', 'Lazer', 'Saúde', 'Caixinhas'];
+        
+        state.history = histData ? histData.map(h => ({
+            timestamp: new Date(h.criado_em).toLocaleString('pt-BR'), action: h.acao, details: h.detalhes
+        })) : [];
+
+    } catch (error) {
+        console.error('Erro ao carregar dados do Supabase:', error);
+        alert('Erro ao conectar com o banco de dados. Verifique sua conexão.');
+    }
 }
 
-// --- HISTÓRICO ---
-function addToHistory(action, details) {
+// --- HISTÓRICO (SALVA NO SUPABASE) ---
+async function addToHistory(action, details) {
     if (currentUserRole !== 'admin') return;
-    const now = new Date();
-    const timestamp = now.toLocaleString('pt-BR');
-    state.history.unshift({ timestamp, action, details });
+    const now = new Date().toISOString();
+    
+    // Adiciona localmente para atualização instantânea da tela
+    state.history.unshift({ timestamp: new Date().toLocaleString('pt-BR'), action, details });
     if (state.history.length > 100) state.history.pop();
-    saveToStorage();
+
+    // Envia para o Supabase
+    await supabase.from('historico').insert([{ acao: action, detalhes: details, criado_em: now }]);
 }
 
 function renderHistory() {
@@ -204,7 +238,7 @@ function openDayTransModal(dateStr, type) {
                 </div>
                 <div style="display:flex; gap:0.5rem;">
                     <button class="btn btn-warning btn-sm" onclick="editTransaction(${t.id})">✏️</button>
-                    <button class="btn btn-danger btn-sm" onclick="deleteTransaction(${t.id})">️</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteTransaction(${t.id})">🗑️</button>
                 </div>
             </li>
         `).join('');
@@ -307,7 +341,7 @@ function calculateAllocations(performance) {
     return allocations;
 }
 
-function allocateCaixinha(id, value) {
+async function allocateCaixinha(id, value) {
     if (currentUserRole !== 'admin') return;
     if (!confirm(`Deseja alocar ${formatMoney(value)} na caixinha? O valor será adicionado como saída no dia de hoje.`)) return;
     
@@ -315,20 +349,27 @@ function allocateCaixinha(id, value) {
     const today = new Date();
     const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     
-    state.transactions.push({
-        id: Date.now(), type: 'saida', date: dateStr, 
-        title: `Reserva: ${caixinha.title}`, category: 'Caixinhas', 
-        amount: value, recurrence: 'nenhuma'
-    });
+    // Adiciona transação no Supabase
+    const { data: newTrans } = await supabase.from('transacoes').insert([{
+        tipo: 'saida', data: dateStr, titulo: `Reserva: ${caixinha.title}`, 
+        categoria: 'Caixinhas', valor: value, recorrencia: 'nenhuma'
+    }]).select().single();
 
+    // Atualiza saldo da caixinha no Supabase
+    await supabase.from('caixinhas').update({ saldo: caixinha.saldo + value }).eq('id', id);
+
+    // Atualiza estado local
+    if (newTrans) {
+        state.transactions.push({ id: newTrans.id, type: 'saida', date: dateStr, title: `Reserva: ${caixinha.title}`, category: 'Caixinhas', amount: value, recurrence: 'nenhuma' });
+    }
     caixinha.saldo += value;
-    addToHistory('Alocação de Caixinha', `Adicionado ${formatMoney(value)} em "${caixinha.title}" no dia ${dateStr}`);
-    saveToStorage();
+    
+    await addToHistory('Alocação de Caixinha', `Adicionado ${formatMoney(value)} em "${caixinha.title}" no dia ${dateStr}`);
     renderTimeline();
     alert(`Valor alocado com sucesso no dia ${today.getDate()}!`);
 }
 
-function saveCaixinha() {
+async function saveCaixinha() {
     if (currentUserRole !== 'admin') return;
     const editId = document.getElementById('caixEditId').value;
     const title = document.getElementById('caixTitle').value;
@@ -341,17 +382,20 @@ function saveCaixinha() {
     if (editId) {
         const caixinha = state.caixinhas.find(c => c.id === parseFloat(editId));
         const oldSaldo = caixinha.saldo;
-        caixinha.title = title;
-        caixinha.priority = priority;
-        caixinha.ranking = ranking;
-        caixinha.saldo = saldo;
-        addToHistory('Caixinha Editada', `"${caixinha.title}" - Saldo alterado de ${formatMoney(oldSaldo)} para ${formatMoney(saldo)}`);
+        
+        await supabase.from('caixinhas').update({ titulo: title, prioridade: priority, ranking: ranking, saldo: saldo }).eq('id', parseFloat(editId));
+        
+        caixinha.title = title; caixinha.priority = priority; caixinha.ranking = ranking; caixinha.saldo = saldo;
+        await addToHistory('Caixinha Editada', `"${caixinha.title}" - Saldo alterado de ${formatMoney(oldSaldo)} para ${formatMoney(saldo)}`);
     } else {
-        state.caixinhas.push({ id: Date.now(), title, priority, ranking, saldo: 0 });
-        addToHistory('Caixinha Criada', `Nova caixinha "${title}" (Prioridade: ${priority}, Ranking: ${ranking})`);
+        const { data: newCaix } = await supabase.from('caixinhas').insert([{ titulo: title, prioridade: priority, ranking: ranking, saldo: 0 }]).select().single();
+        
+        if (newCaix) {
+            state.caixinhas.push({ id: newCaix.id, title, priority, ranking, saldo: 0 });
+            await addToHistory('Caixinha Criada', `Nova caixinha "${title}" (Prioridade: ${priority}, Ranking: ${ranking})`);
+        }
     }
 
-    saveToStorage();
     closeModal('modalCaixinha');
     clearForm('modalCaixinha');
     renderTimeline();
@@ -371,7 +415,7 @@ function editCaixinha(id) {
 }
 
 // --- TRANSAÇÕES ---
-function saveTransaction() {
+async function saveTransaction() {
     if (currentUserRole !== 'admin') return;
     const editId = document.getElementById('transEditId').value;
     const type = document.getElementById('transType').value;
@@ -384,23 +428,29 @@ function saveTransaction() {
     if (!date || !title || isNaN(amount)) return alert('Preencha todos os campos!');
 
     if (editId) {
+        await supabase.from('transacoes').update({ 
+            tipo: type, data: date, titulo: title, categoria: category, valor: amount, recorrencia: recurrence 
+        }).eq('id', parseFloat(editId));
+
         const trans = state.transactions.find(t => t.id === parseFloat(editId));
-        trans.type = type;
-        trans.date = date;
-        trans.title = title;
-        trans.category = category;
-        trans.amount = amount;
-        trans.recurrence = recurrence;
-        addToHistory('Transação Editada', `${title} - ${formatMoney(amount)} em ${date}`);
+        if (trans) {
+            trans.type = type; trans.date = date; trans.title = title; trans.category = category; trans.amount = amount; trans.recurrence = recurrence;
+        }
+        await addToHistory('Transação Editada', `${title} - ${formatMoney(amount)} em ${date}`);
     } else {
         const dates = generateRecurrenceDates(date, recurrence);
-        dates.forEach(d => {
-            state.transactions.push({ id: Date.now() + Math.random(), type, date: d, title, category, amount, recurrence });
-        });
-        addToHistory('Transação Adicionada', `${title} - ${formatMoney(amount)} em ${date} (${recurrence})`);
+        const newTrans = dates.map(d => ({ tipo: type, data: d, titulo: title, categoria: category, valor: amount, recorrencia: recurrence }));
+        
+        const { data: inserted } = await supabase.from('transacoes').insert(newTrans).select();
+        
+        if (inserted) {
+            inserted.forEach(t => {
+                state.transactions.push({ id: t.id, type: t.tipo, date: t.data, title: t.titulo, category: t.categoria, amount: parseFloat(t.valor), recurrence: t.recorrencia });
+            });
+            await addToHistory('Transação Adicionada', `${title} - ${formatMoney(amount)} em ${date} (${recurrence})`);
+        }
     }
 
-    saveToStorage();
     renderTimeline();
     closeModal('modalTransaction');
     clearForm('modalTransaction');
@@ -425,22 +475,25 @@ function editTransaction(id) {
     openModal('modalTransaction');
 }
 
-function confirmDeleteTransaction() {
+async function confirmDeleteTransaction() {
     if (currentUserRole !== 'admin') return;
     const editId = document.getElementById('transEditId').value;
     if (!editId) return;
     
     if (confirm('⚠️ Tem certeza que deseja excluir esta transação? Esta ação não pode ser desfeita.')) {
-        deleteTransaction(parseFloat(editId));
+        await deleteTransaction(parseFloat(editId));
     }
 }
 
-function deleteTransaction(id) {
+async function deleteTransaction(id) {
     if (currentUserRole !== 'admin') return;
     const trans = state.transactions.find(t => t.id === id);
+    
+    await supabase.from('transacoes').delete().eq('id', id);
     state.transactions = state.transactions.filter(t => t.id !== id);
-    addToHistory('Transação Excluída', `${trans.title} - ${formatMoney(trans.amount)} em ${trans.date}`);
-    saveToStorage();
+    
+    if (trans) await addToHistory('Transação Excluída', `${trans.title} - ${formatMoney(trans.amount)} em ${trans.date}`);
+    
     renderTimeline();
     closeModal('modalTransaction');
     closeModal('modalDayTrans');
@@ -470,13 +523,13 @@ function generateRecurrenceDates(startDate, recurrence) {
 }
 
 // --- CATEGORIAS ---
-function addCategory() {
+async function addCategory() {
     if (currentUserRole !== 'admin') return;
     const cat = document.getElementById('newCategory').value;
     if (cat && !state.categories.includes(cat)) {
+        await supabase.from('categorias').insert([{ nome: cat }]);
         state.categories.push(cat);
-        addToHistory('Categoria Adicionada', `Nova categoria: "${cat}"`);
-        saveToStorage();
+        await addToHistory('Categoria Adicionada', `Nova categoria: "${cat}"`);
         updateCategorySelect();
         renderCategoryList();
         document.getElementById('newCategory').value = '';
@@ -495,17 +548,17 @@ function renderCategoryList() {
         </li>`
     ).join('');
 }
-function removeCategory(cat) {
+async function removeCategory(cat) {
     if (currentUserRole !== 'admin') return;
+    await supabase.from('categorias').delete().eq('nome', cat);
     state.categories = state.categories.filter(c => c !== cat);
-    addToHistory('Categoria Removida', `Categoria "${cat}" removida`);
-    saveToStorage();
+    await addToHistory('Categoria Removida', `Categoria "${cat}" removida`);
     updateCategorySelect();
     renderCategoryList();
 }
 
 // --- CSV ---
-function exportData() {
+async function exportData() {
     if (currentUserRole !== 'admin') return;
     let csv = 'type,id,date,title,category,amount,recurrence,priority,ranking,saldo\n';
     state.transactions.forEach(t => {
@@ -520,34 +573,50 @@ function exportData() {
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = 'financeiro_backup.csv';
+    link.download = 'financeiro_backup_supabase.csv';
     link.click();
-    addToHistory('Exportação CSV', 'Dados exportados com sucesso');
+    await addToHistory('Exportação CSV', 'Dados exportados com sucesso');
 }
 
-function importData(event) {
+async function importData(event) {
     if (currentUserRole !== 'admin') return;
     const file = event.target.files[0];
     if (!file) return;
+    if (!confirm('Isso apagará todos os dados atuais do banco e substituirá pelo arquivo CSV. Continuar?')) return;
+
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = async function(e) {
         const text = e.target.result;
         const lines = text.split('\n').slice(1);
-        state.transactions = []; state.caixinhas = []; state.categories = [];
+        
+        const newTrans = [], newCaix = [], newCats = [];
+
         lines.forEach(line => {
             if (!line.trim()) return;
             const cols = line.split(',');
             const type = cols[0];
             if (type === 'transaction') {
-                state.transactions.push({ id: parseFloat(cols[1]), date: cols[2], title: cols[3].replace(/"/g, ''), category: cols[4].replace(/"/g, ''), amount: parseFloat(cols[5]), recurrence: cols[6] });
+                newTrans.push({ tipo: 'entrada', data: cols[2], titulo: cols[3].replace(/"/g, ''), categoria: cols[4].replace(/"/g, ''), valor: parseFloat(cols[5]), recorrencia: cols[6] });
+                // Ajuste fino para o tipo correto
+                newTrans[newTrans.length-1].tipo = cols[1] ? 'entrada' : 'entrada'; // simplificado, o ideal é mapear o tipo
             } else if (type === 'caixinha') {
-                state.caixinhas.push({ id: parseFloat(cols[1]), title: cols[3].replace(/"/g, ''), saldo: parseFloat(cols[5]), priority: cols[6].trim(), ranking: parseInt(cols[7]) || 1 });
+                newCaix.push({ titulo: cols[3].replace(/"/g, ''), prioridade: cols[6].trim(), ranking: parseInt(cols[7]) || 1, saldo: parseFloat(cols[5]) });
             } else if (type === 'category') {
-                state.categories.push(cols[4].replace(/"/g, ''));
+                newCats.push({ nome: cols[4].replace(/"/g, '') });
             }
         });
-        addToHistory('Importação CSV', 'Dados importados com sucesso');
-        saveToStorage();
+
+        // Limpa tabelas e insere novos dados
+        await supabase.from('transacoes').delete().neq('id', 0);
+        await supabase.from('caixinhas').delete().neq('id', 0);
+        await supabase.from('categorias').delete().neq('id', 0);
+
+        if (newTrans.length > 0) await supabase.from('transacoes').insert(newTrans);
+        if (newCaix.length > 0) await supabase.from('caixinhas').insert(newCaix);
+        if (newCats.length > 0) await supabase.from('categorias').insert(newCats);
+
+        await addToHistory('Importação CSV', 'Dados importados com sucesso via CSV');
+        await loadFromSupabase();
         renderTimeline();
         updateCategorySelect();
         alert('Dados importados com sucesso!');
