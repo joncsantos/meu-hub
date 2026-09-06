@@ -4,9 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestão Financeira</title>
+    <!-- Biblioteca do Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link rel="stylesheet" href="style.css">
+    <!-- Biblioteca do Gráfico -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Seu CSS (na raiz) -->
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -28,8 +31,8 @@
 
     <div class="app-tabs">
         <div class="app-tab active" onclick="switchTab('tab-timeline', this)">📅 Linha do Tempo</div>
-        <div class="app-tab" onclick="switchTab('tab-performance', this)">📊 Desempenho</div>
-        <div class="app-tab admin-only" id="tab-history-btn" onclick="switchTab('tab-history', this)">📜 Histórico</div>
+        <div class="app-tab" onclick="switchTab('tab-performance', this)"> Desempenho</div>
+        <div class="app-tab admin-only" id="tab-history-btn" onclick="switchTab('tab-history', this)"> Histórico</div>
     </div>
 
     <!-- Aba Linha do Tempo -->
@@ -45,7 +48,7 @@
         </div>
 
         <div style="margin-bottom:1.5rem;">
-            <h3 style="margin-bottom:1rem;"> Minhas Caixinhas</h3>
+            <h3 style="margin-bottom:1rem;">🐷 Minhas Caixinhas</h3>
             <div class="caixinhas-grid" id="caixinhasGrid"></div>
         </div>
 
@@ -146,6 +149,7 @@
     </div>
 </div>
 
+<!-- Seu JS (na raiz) -->
 <script src="financeiro.js"></script>
 </body>
 </html>
