@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão Financeira</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<div id="finance-app">
+    <div class="app-header">
+        <div>
+            <button class="btn btn-secondary btn-sm" onclick="window.location.href='index.html'">← Voltar ao Hub</button>
+            <h2 style="margin-top:0.5rem">Linha do Tempo Financeira <span id="userBadge" style="font-size:0.8rem; background:var(--bg); padding:0.2rem 0.5rem; border-radius:12px; color:var(--text-muted);"></span></h2>
+        </div>
+        <div class="header-actions admin-only">
+            <button class="btn btn-secondary" onclick="openModal('modalTransaction')">+ Transação</button>
+            <button class="btn btn-secondary" onclick="openModal('modalCaixinha')">+ Caixinha</button>
+            <button class="btn btn-secondary" onclick="openModal('modalCategory')">Categorias</button>
+            <button class="btn btn-secondary" onclick="exportData()">Exportar CSV</button>
+            <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">Importar CSV</button>
+            <input type="file" id="importFile" style="display:none" accept=".csv" onchange="importData(event)">
+        </div>
+    </div>
+
+    <div class="app-tabs">
+        <div class="app-tab active" onclick="switchTab('tab-timeline', this)">📅 Linha do Tempo</div>
+        <div class="app-tab" onclick="switchTab('tab-performance', this)">📊 Desempenho</div>
+        <div class="app-tab admin-only" id="tab-history-btn" onclick="switchTab('tab-history', this)">📜 Histórico</div>
+    </div>
+
+    <!-- Aba Linha do Tempo -->
+    <div id="tab-timeline" class="tab-content active">
+        <div class="month-tabs" id="monthTabs"></div>
+
+        <div class="summary-grid">
+            <div class="summary-card"><h4>Total Entradas</h4><p id="sumEntrada" class="text-success">R$ 0,00</p></div>
+            <div class="summary-card"><h4>Saídas Fixas</h4><p id="sumSaida" class="text-danger">R$ 0,00</p></div>
+            <div class="summary-card"><h4>Total Diário</h4><p id="sumDiario" class="text-danger">R$ 0,00</p></div>
+            <div class="summary-card"><h4>Saída Total</h4><p id="sumSaidaTotal" class="text-danger">R$ 0,00</p></div>
+            <div class="summary-card"><h4>Performance</h4><p id="sumPerformance">R$ 0,00</p></div>
+        </div>
+
+        <div style="margin-bottom:1.5rem;">
+            <h3 style="margin-bottom:1rem;"> Minhas Caixinhas</h3>
+            <div class="caixinhas-grid" id="caixinhasGrid"></div>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Entrada</th>
+                        <th>Saída</th>
+                        <th>Diário</th>
+                        <th>Saldo</th>
+                        <th class="bg-gray">Previsão Diário</th>
+                    </tr>
+                </thead>
+                <tbody id="timelineBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Aba Desempenho -->
+    <div id="tab-performance" class="tab-content">
+        <div class="month-tabs" id="monthTabsPerformance"></div>
+        <div class="chart-section">
+            <canvas id="financeChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Aba Histórico -->
+    <div id="tab-history" class="tab-content">
+        <h3 style="margin-bottom:1rem;">📜 Histórico de Alterações</h3>
+        <div class="history-list" id="historyList"></div>
+    </div>
+</div>
+
+<!-- MODAL TRANSAÇÃO -->
+<div class="modal-overlay" id="modalTransaction">
+    <div class="modal">
+        <h2 id="transModalTitle">Adicionar Transação</h2>
+        <input type="hidden" id="transEditId">
+        <div class="form-group"><label>Tipo</label><select id="transType"><option value="entrada">Entrada</option><option value="saida">Saída (Fixa)</option><option value="diario">Diário</option></select></div>
+        <div class="form-group"><label>Data</label><input type="date" id="transDate"></div>
+        <div class="form-group"><label>Título</label><input type="text" id="transTitle"></div>
+        <div class="form-group"><label>Categoria</label><select id="transCategory"></select></div>
+        <div class="form-group"><label>Valor (R$)</label><input type="number" id="transAmount" step="0.01"></div>
+        <div class="form-group"><label>Recorrência</label><select id="transRecurrence"><option value="nenhuma">Nenhuma</option><option value="diaria">Diária</option><option value="quinzenal">Quinzenal (15 dias)</option><option value="mensal">Mensal</option></select></div>
+        <div class="modal-actions">
+            <button id="btnDeleteTrans" class="btn btn-danger hidden" onclick="confirmDeleteTransaction()">🗑️ Excluir</button>
+            <div class="modal-actions-right">
+                <button class="btn btn-secondary" onclick="closeModal('modalTransaction')">Cancelar</button>
+                <button class="btn btn-primary admin-only" onclick="saveTransaction()">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL LISTA DE TRANSAÇÕES DO DIA -->
+<div class="modal-overlay" id="modalDayTrans">
+    <div class="modal">
+        <h2 id="dayTransTitle">Transações do Dia</h2>
+        <ul class="day-trans-list" id="dayTransList"></ul>
+        <div class="modal-actions">
+            <div></div>
+            <button class="btn btn-secondary" onclick="closeModal('modalDayTrans')">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL CAIXINHA -->
+<div class="modal-overlay" id="modalCaixinha">
+    <div class="modal">
+        <h2 id="caixModalTitle">Nova Caixinha</h2>
+        <input type="hidden" id="caixEditId">
+        <div class="form-group"><label>Título</label><input type="text" id="caixTitle"></div>
+        <div class="form-group"><label>Prioridade</label><select id="caixPriority"><option value="muito">Muito Importante (60%)</option><option value="importante">Importante (30%)</option><option value="pouco">Pouco Importante (10%)</option></select></div>
+        <div class="form-group"><label>Ranking (1 = Maior prioridade na categoria)</label><input type="number" id="caixRanking" min="1" value="1"></div>
+        <div class="form-group" id="caixSaldoGroup" style="display:none;"><label>Saldo Atual (R$)</label><input type="number" id="caixSaldo" step="0.01"></div>
+        <div class="modal-actions">
+            <div></div>
+            <div class="modal-actions-right">
+                <button class="btn btn-secondary" onclick="closeModal('modalCaixinha')">Cancelar</button>
+                <button class="btn btn-primary admin-only" onclick="saveCaixinha()">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL CATEGORIAS -->
+<div class="modal-overlay" id="modalCategory">
+    <div class="modal">
+        <h2>Gerenciar Categorias</h2>
+        <div class="form-group" style="display:flex; gap:0.5rem;"><input type="text" id="newCategory" placeholder="Nova categoria"><button class="btn btn-primary admin-only" onclick="addCategory()">Add</button></div>
+        <ul id="categoryList" style="list-style:none; margin-top:1rem;"></ul>
+        <div class="modal-actions">
+            <div></div>
+            <button class="btn btn-secondary" onclick="closeModal('modalCategory')">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<script src="js/financeiro.js"></script>
+</body>
+</html>
