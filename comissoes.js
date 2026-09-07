@@ -305,6 +305,33 @@ async function saveEditParcela() {
     
     var valorComissao = (valor * 0.77) * (percentual / 100);
     
+    // ATUALIZAR APENAS ESTA PARCELA ESPECÍFICA (usando .eq('id', id))
+    var result = await supabaseClient
+        .from('comissoes')
+        .update({ 
+            cliente: cliente, 
+            nota_fiscal: nota, 
+            valor_parcela: valor, 
+            percentual_comissao: percentual, 
+            valor_comissao: valorComissao 
+        })
+        .eq('id', id); 
+    
+    if (result.error) {
+        console.error('Erro ao editar:', result.error);
+        alert('Erro ao salvar edições: ' + result.error.message);
+        return;
+    }
+    
+    closeModal('modalEditarParcela');
+    await loadFromSupabase();
+    renderCards();
+    updateResumo();
+    alert('Parcela atualizada com sucesso!');
+}
+    
+    var valorComissao = (valor * 0.77) * (percentual / 100);
+    
     // Atualizar todas as parcelas do mesmo grupo (cliente + nota fiscal)
     var parcelaOriginal = state.comissoes.find(function(c) { return c.id === id; });
     var notaFiscalOriginal = parcelaOriginal.nota_fiscal;
