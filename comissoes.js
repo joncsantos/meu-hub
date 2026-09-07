@@ -132,7 +132,7 @@ function renderCards() {
             html += '<input type="checkbox" ' + (p.pago ? 'checked' : '') + ' onchange="updatePago(' + p.id + ', this.checked)" ' + (currentUserRole !== 'admin' ? 'disabled' : '') + ' title="Pago">';
             if (currentUserRole === 'admin') {
                 html += '<button class="btn btn-warning btn-sm" onclick="editParcela(' + p.id + ')">✏️</button>';
-                html += '<button class="btn btn-danger btn-sm" onclick="deleteParcela(' + p.id + ')">🗑️</button>';
+                html += '<button class="btn btn-danger btn-sm" onclick="deleteParcela(' + p.id + ')">️</button>';
             }
             html += '</div>';
             html += '</div>';
@@ -146,41 +146,35 @@ function renderCards() {
 
 function updateResumo() {
     var year = state.currentYear;
-    var month = state.currentMonth; // 0 a 11 (Ex: Outubro é 9)
+    var month = state.currentMonth;
     
-    // --- LÓGICA DO CICLO (23 a 22) ---
-    // Para o mês de referência (ex: Outubro), o ciclo é:
-    // Início: dia 23 do mês retrasado (Agosto)
-    // Fim: dia 22 do mês anterior (Setembro)
-    
+    // Lógica do Ciclo (23 a 22)
     var startMonth = month - 2; 
     var startYear = year;
-    if (startMonth < 0) { startMonth += 12; startYear -= 1; } // Ajuste para Janeiro/Fevereiro
+    if (startMonth < 0) { startMonth += 12; startYear -= 1; }
     
     var endMonth = month - 1; 
     var endYear = year;
-    if (endMonth < 0) { endMonth += 12; endYear -= 1; } // Ajuste para Janeiro
+    if (endMonth < 0) { endMonth += 12; endYear -= 1; }
     
-    // Criar as datas exatas do ciclo
     var startDate = new Date(startYear, startMonth, 23);
     var endDate = new Date(endYear, endMonth, 22);
-    endDate.setHours(23, 59, 59, 999); // Garante que o dia 22 inteiro seja contado
+    endDate.setHours(23, 59, 59, 999);
 
-    // 1. PREVISÃO: Soma todas as parcelas com data dentro do ciclo (com ou sem checkbox)
+    // 1. PREVISÃO
     var previsao = state.comissoes.filter(function(c) {
         if (!c.data_pagamento) return false;
-        var d = new Date(c.data_pagamento + 'T00:00:00'); // T00:00:00 evita erro de fuso horário
+        var d = new Date(c.data_pagamento + 'T00:00:00');
         return d >= startDate && d <= endDate;
     }).reduce(function(sum, c) { return sum + c.valor_comissao; }, 0);
     
-    // 2. A RECEBER: Soma apenas as que têm o checkbox "Pago" marcado dentro do ciclo
+    // 2. A RECEBER
     var aReceber = state.comissoes.filter(function(c) {
         if (!c.pago || !c.data_pagamento) return false;
         var d = new Date(c.data_pagamento + 'T00:00:00');
         return d >= startDate && d <= endDate;
     }).reduce(function(sum, c) { return sum + c.valor_comissao; }, 0);
     
-    // Atualiza a tela
     document.getElementById('resumoPrevisao').textContent = formatMoney(previsao);
     document.getElementById('resumoReceber').textContent = formatMoney(aReceber);
 }
@@ -220,8 +214,6 @@ async function saveComissao() {
         });
     }
     
-    console.log('Enviando dados:', newComissoes);
-    
     var result = await supabaseClient.from('comissoes').insert(newComissoes);
     
     if (result.error) {
@@ -230,7 +222,6 @@ async function saveComissao() {
         return;
     }
     
-    console.log('Sucesso!', result);
     closeModal('modalComissao');
     clearForm('modalComissao');
     await loadFromSupabase();
@@ -272,14 +263,12 @@ async function updatePago(id, pago) {
     updateResumo();
 }
 
-// --- NOVA FUNÇÃO: EDITAR PARCELA ---
 function editParcela(id) {
     if (currentUserRole !== 'admin') return;
     
     var parcela = state.comissoes.find(function(c) { return c.id === id; });
     if (!parcela) return;
     
-    // Preencher modal com dados da parcela
     document.getElementById('editCliente').value = parcela.cliente;
     document.getElementById('editNota').value = parcela.nota_fiscal;
     document.getElementById('editValor').value = parcela.valor_parcela;
@@ -289,20 +278,21 @@ function editParcela(id) {
     openModal('modalEditarParcela');
 }
 
-
+async function saveEditParcela() {
+    if (currentUserRole !== 'admin') return;
+    
+    var id = parseInt(document.getElementById('editParcelaId').value);
+    var cliente = document.getElementById('editCliente').value;
+    var nota = document.getElementById('editNota').value;
+    var valor = parseFloat(document.getElementById('editValor').value);
+    var percentual = parseFloat(document.getElementById('editPercentual').value);
+    
+    if (!cliente || !nota || !valor) {
+        alert('Preencha todos os campos!');
+        return;
+    }
     
     var valorComissao = (valor * 0.77) * (percentual / 100);
-    
-    // Atualizar todas as parcelas do mesmo grupo (cliente + nota fiscal)
-    var parcelaOriginal = state.comissoes.find(function(c) { return c.id === id; });
-    var notaFiscalOriginal = parcelaOriginal.nota_fiscal;
-    var clienteOriginal = parcelaOriginal.cliente;
-    
-    var parcelasDoGrupo = state.comissoes.filter(function(c) {
-        return c.cliente === clienteOriginal && c.nota_fiscal === notaFiscalOriginal;
-    });
-    
-    var idsParaAtualizar = parcelasDoGrupo.map(function(p) { return p.id; });
     
     var result = await supabaseClient
         .from('comissoes')
@@ -313,7 +303,7 @@ function editParcela(id) {
             percentual_comissao: percentual, 
             valor_comissao: valorComissao 
         })
-        .in('id', idsParaAtualizar);
+        .eq('id', id);
     
     if (result.error) {
         console.error('Erro ao editar:', result.error);
@@ -325,7 +315,7 @@ function editParcela(id) {
     await loadFromSupabase();
     renderCards();
     updateResumo();
-    alert('Comissão atualizada com sucesso!');
+    alert('Parcela atualizada com sucesso!');
 }
 
 async function deleteParcela(id) {
