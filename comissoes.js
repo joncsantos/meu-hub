@@ -289,46 +289,7 @@ function editParcela(id) {
     openModal('modalEditarParcela');
 }
 
-async function saveEditParcela() {
-    if (currentUserRole !== 'admin') return;
-    
-    var id = parseInt(document.getElementById('editParcelaId').value);
-    var cliente = document.getElementById('editCliente').value;
-    var nota = document.getElementById('editNota').value;
-    var valor = parseFloat(document.getElementById('editValor').value);
-    var percentual = parseFloat(document.getElementById('editPercentual').value);
-    
-    if (!cliente || !nota || !valor) {
-        alert('Preencha todos os campos!');
-        return;
-    }
-    
-    var valorComissao = (valor * 0.77) * (percentual / 100);
-    
-    // ATUALIZAR APENAS ESTA PARCELA ESPECÍFICA (usando .eq('id', id))
-    var result = await supabaseClient
-        .from('comissoes')
-        .update({ 
-            cliente: cliente, 
-            nota_fiscal: nota, 
-            valor_parcela: valor, 
-            percentual_comissao: percentual, 
-            valor_comissao: valorComissao 
-        })
-        .eq('id', id); 
-    
-    if (result.error) {
-        console.error('Erro ao editar:', result.error);
-        alert('Erro ao salvar edições: ' + result.error.message);
-        return;
-    }
-    
-    closeModal('modalEditarParcela');
-    await loadFromSupabase();
-    renderCards();
-    updateResumo();
-    alert('Parcela atualizada com sucesso!');
-}
+
     
     var valorComissao = (valor * 0.77) * (percentual / 100);
     
