@@ -333,6 +333,75 @@ async function deleteParcela(id) {
     updateResumo();
 }
 
+// --- NOVA FUNÇÃO: EXPORTAR RELATÓRIO ---
+function exportarRelatorio() {
+    var year = state.currentYear;
+    var month = state.currentMonth;
+    
+    // Calcular período do ciclo (23 a 22)
+    var startMonth = month - 2;
+    var startYear = year;
+    if (startMonth < 0) { startMonth += 12; startYear -= 1; }
+    
+    var endMonth = month - 1;
+    var endYear = year;
+    if (endMonth < 0) { endMonth += 12; endYear -= 1; }
+    
+    var startDate = new Date(startYear, startMonth, 23);
+    var endDate = new Date(endYear, endMonth, 22);
+    endDate.setHours(23, 59, 59, 999);
+    
+    // Filtrar apenas parcelas PENDENTES (não pagas) com data dentro do ciclo
+    var pendentes = state.comissoes.filter(function(c) {
+        if (c.pago) return false; // Ignora as já pagas
+        if (!c.data_pagamento) return false; // Ignora sem data definida
+        var d = new Date(c.data_pagamento + 'T00:00:00');
+        return d >= startDate && d <= endDate;
+    });
+    
+    if (pendentes.length === 0) {
+        alert('Nenhuma parcela pendente encontrada para o mês de ' + months[month] + '/' + year + '.');
+        return;
+    }
+    
+    // Montar CSV
+    var csv = 'Nota Fiscal;Cliente;Parcela;Data Pagamento;Valor Parcela (R$);Valor Comissão (R$);Status\n';
+    
+    pendentes.forEach(function(p) {
+        var dataFormatada = formatDate(p.data_pagamento);
+        var valorParcela = p.valor_parcela.toFixed(2).replace('.', ',');
+        var valorComissao = p.valor_comissao.toFixed(2).replace('.', ',');
+        
+        csv += '"' + p.nota_fiscal + '";';
+        csv += '"' + p.cliente + '";';
+        csv += '"' + p.parcela_letra + '";';
+        csv += '"' + dataFormatada + '";';
+        csv += '"' + valorParcela + '";';
+        csv += '"' + valorComissao + '";';
+        csv += 'Pendente\n';
+    });
+    
+    // Adicionar totais
+    var totalParcelas = pendentes.reduce(function(sum, p) { return sum + p.valor_parcela; }, 0);
+    var totalComissoes = pendentes.reduce(function(sum, p) { return sum + p.valor_comissao; }, 0);
+    
+    csv += '\n';
+    csv += ';;TOTAL;;' + totalParcelas.toFixed(2).replace('.', ',') + ';' + totalComissoes.toFixed(2).replace('.', ',') + ';\n';
+    
+    // Criar arquivo e fazer download
+    var blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    var link = document.createElement('a');
+    var url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'Relatorio_Comissoes_Pendentes_' + months[month] + '_' + year + '.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    alert('Relatório exportado com sucesso! ' + pendentes.length + ' parcela(s) pendente(s).');
+}
+
 function formatDate(dateStr) {
     if (!dateStr) return 'Não definida';
     var parts = dateStr.split('-');
