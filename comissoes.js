@@ -41,6 +41,10 @@ async function initComissoes() {
 async function loadFromSupabase() {
     try {
         var result = await supabaseClient.from('comissoes').select('*').order('criado_em', { ascending: false });
+        if (result.error) {
+            console.error('Erro ao carregar:', result.error);
+            return;
+        }
         state.comissoes = result.data ? result.data.map(function(c) {
             return {
                 id: c.id,
@@ -181,6 +185,7 @@ async function saveComissao() {
     
     var letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
     var newComissoes = [];
+    var mesRef = state.currentYear + '-' + String(state.currentMonth + 1).padStart(2, '0');
     
     for (var i = 0; i < parcelas; i++) {
         var letra = letras[i] || ('P' + (i + 1));
@@ -195,29 +200,39 @@ async function saveComissao() {
             valor_comissao: valorComissao,
             data_pagamento: null,
             pago: false,
-            mes_referencia: state.currentYear + '-' + String(state.currentMonth + 1).padStart(2, '0'),
-            criado_em: new Date().toISOString()
+            mes_referencia: mesRef
+            // REMOVEMOS criado_em - o Supabase vai preencher automaticamente
         });
     }
     
+    console.log('Enviando dados:', newComissoes);
+    
     var result = await supabaseClient.from('comissoes').insert(newComissoes);
+    
     if (result.error) {
-        console.error('Erro ao salvar:', result.error);
-        alert('Erro ao salvar comissão');
+        console.error('Erro detalhado:', result.error);
+        alert('Erro ao salvar comissão: ' + result.error.message);
         return;
     }
     
+    console.log('Sucesso!', result);
     closeModal('modalComissao');
     clearForm('modalComissao');
     await loadFromSupabase();
     renderCards();
     updateResumo();
+    alert('Comissão adicionada com sucesso!');
 }
 
 async function updateDataPagamento(id, data) {
     if (currentUserRole !== 'admin') return;
     
-    await supabaseClient.from('comissoes').update({ data_pagamento: data }).eq('id', id);
+    var result = await supabaseClient.from('comissoes').update({ data_pagamento: data }).eq('id', id);
+    if (result.error) {
+        console.error('Erro ao atualizar data:', result.error);
+        return;
+    }
+    
     var parcela = state.comissoes.find(function(c) { return c.id === id; });
     if (parcela) {
         parcela.data_pagamento = data;
@@ -228,7 +243,12 @@ async function updateDataPagamento(id, data) {
 async function updatePago(id, pago) {
     if (currentUserRole !== 'admin') return;
     
-    await supabaseClient.from('comissoes').update({ pago: pago }).eq('id', id);
+    var result = await supabaseClient.from('comissoes').update({ pago: pago }).eq('id', id);
+    if (result.error) {
+        console.error('Erro ao atualizar pago:', result.error);
+        return;
+    }
+    
     var parcela = state.comissoes.find(function(c) { return c.id === id; });
     if (parcela) {
         parcela.pago = pago;
@@ -239,7 +259,6 @@ async function updatePago(id, pago) {
 
 function editParcela(id) {
     if (currentUserRole !== 'admin') return;
-    // Implementar modal de edição se necessário
     alert('Funcionalidade de edição em desenvolvimento');
 }
 
@@ -247,7 +266,12 @@ async function deleteParcela(id) {
     if (currentUserRole !== 'admin') return;
     if (!confirm('Tem certeza que deseja excluir esta parcela?')) return;
     
-    await supabaseClient.from('comissoes').delete().eq('id', id);
+    var result = await supabaseClient.from('comissoes').delete().eq('id', id);
+    if (result.error) {
+        console.error('Erro ao excluir:', result.error);
+        return;
+    }
+    
     await loadFromSupabase();
     renderCards();
     updateResumo();
@@ -273,6 +297,6 @@ function closeModal(id) {
 
 function clearForm(id) {
     document.querySelectorAll('#' + id + ' input').forEach(function(input) {
-        input.value = '';
+        if (input.type !== 'hidden') input.value = '';
     });
 }
