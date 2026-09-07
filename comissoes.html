@@ -108,5 +108,30 @@
 </div>
 
 <script src="comissoes.js"></script>
+<!-- MODAL EDITAR PARCELA -->
+<div class="modal-overlay" id="modalEditarParcela">
+    <div class="modal">
+        <h2>Editar Comissão</h2>
+        <input type="hidden" id="editParcelaId">
+        <div class="form-group"><label>Nome do Cliente</label><input type="text" id="editCliente" placeholder="Ex: João Silva"></div>
+        <div class="form-group"><label>Número da Nota Fiscal</label><input type="text" id="editNota" placeholder="Ex: NF-001234"></div>
+        <div class="form-group"><label>Valor da Parcela (R$)</label><input type="number" id="editValor" step="0.01" placeholder="Ex: 1000.00"></div>
+        <div class="form-group"><label>Percentual da Comissão</label>
+            <select id="editPercentual">
+                <option value="1">1% (Padrão)</option>
+                <option value="0.9">0.9%</option>
+                <option value="0.8">0.8%</option>
+                <option value="0.7">0.7%</option>
+            </select>
+        </div>
+        <div class="modal-actions">
+            <div></div>
+            <div class="modal-actions-right">
+                <button class="btn btn-secondary" onclick="closeModal('modalEditarParcela')">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveEditParcela()">Salvar Alterações</button>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>
