@@ -201,7 +201,6 @@ async function saveComissao() {
             data_pagamento: null,
             pago: false,
             mes_referencia: mesRef
-            // REMOVEMOS criado_em - o Supabase vai preencher automaticamente
         });
     }
     
@@ -257,9 +256,72 @@ async function updatePago(id, pago) {
     updateResumo();
 }
 
+// --- NOVA FUNÇÃO: EDITAR PARCELA ---
 function editParcela(id) {
     if (currentUserRole !== 'admin') return;
-    alert('Funcionalidade de edição em desenvolvimento');
+    
+    var parcela = state.comissoes.find(function(c) { return c.id === id; });
+    if (!parcela) return;
+    
+    // Preencher modal com dados da parcela
+    document.getElementById('editCliente').value = parcela.cliente;
+    document.getElementById('editNota').value = parcela.nota_fiscal;
+    document.getElementById('editValor').value = parcela.valor_parcela;
+    document.getElementById('editPercentual').value = parcela.percentual_comissao;
+    document.getElementById('editParcelaId').value = parcela.id;
+    
+    openModal('modalEditarParcela');
+}
+
+async function saveEditParcela() {
+    if (currentUserRole !== 'admin') return;
+    
+    var id = parseInt(document.getElementById('editParcelaId').value);
+    var cliente = document.getElementById('editCliente').value;
+    var nota = document.getElementById('editNota').value;
+    var valor = parseFloat(document.getElementById('editValor').value);
+    var percentual = parseFloat(document.getElementById('editPercentual').value);
+    
+    if (!cliente || !nota || !valor) {
+        alert('Preencha todos os campos!');
+        return;
+    }
+    
+    var valorComissao = (valor * 0.77) * (percentual / 100);
+    
+    // Atualizar todas as parcelas do mesmo grupo (cliente + nota fiscal)
+    var parcelaOriginal = state.comissoes.find(function(c) { return c.id === id; });
+    var notaFiscalOriginal = parcelaOriginal.nota_fiscal;
+    var clienteOriginal = parcelaOriginal.cliente;
+    
+    var parcelasDoGrupo = state.comissoes.filter(function(c) {
+        return c.cliente === clienteOriginal && c.nota_fiscal === notaFiscalOriginal;
+    });
+    
+    var idsParaAtualizar = parcelasDoGrupo.map(function(p) { return p.id; });
+    
+    var result = await supabaseClient
+        .from('comissoes')
+        .update({ 
+            cliente: cliente, 
+            nota_fiscal: nota, 
+            valor_parcela: valor, 
+            percentual_comissao: percentual, 
+            valor_comissao: valorComissao 
+        })
+        .in('id', idsParaAtualizar);
+    
+    if (result.error) {
+        console.error('Erro ao editar:', result.error);
+        alert('Erro ao salvar edições: ' + result.error.message);
+        return;
+    }
+    
+    closeModal('modalEditarParcela');
+    await loadFromSupabase();
+    renderCards();
+    updateResumo();
+    alert('Comissão atualizada com sucesso!');
 }
 
 async function deleteParcela(id) {
