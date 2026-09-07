@@ -146,25 +146,41 @@ function renderCards() {
 
 function updateResumo() {
     var year = state.currentYear;
-    var month = state.currentMonth;
+    var month = state.currentMonth; // 0 a 11 (Ex: Outubro é 9)
     
-    // Previsão: todas as parcelas com data até dia 22 do mês atual
+    // --- LÓGICA DO CICLO (23 a 22) ---
+    // Para o mês de referência (ex: Outubro), o ciclo é:
+    // Início: dia 23 do mês retrasado (Agosto)
+    // Fim: dia 22 do mês anterior (Setembro)
+    
+    var startMonth = month - 2; 
+    var startYear = year;
+    if (startMonth < 0) { startMonth += 12; startYear -= 1; } // Ajuste para Janeiro/Fevereiro
+    
+    var endMonth = month - 1; 
+    var endYear = year;
+    if (endMonth < 0) { endMonth += 12; endYear -= 1; } // Ajuste para Janeiro
+    
+    // Criar as datas exatas do ciclo
+    var startDate = new Date(startYear, startMonth, 23);
+    var endDate = new Date(endYear, endMonth, 22);
+    endDate.setHours(23, 59, 59, 999); // Garante que o dia 22 inteiro seja contado
+
+    // 1. PREVISÃO: Soma todas as parcelas com data dentro do ciclo (com ou sem checkbox)
     var previsao = state.comissoes.filter(function(c) {
         if (!c.data_pagamento) return false;
-        var d = new Date(c.data_pagamento);
-        return d.getFullYear() === year && d.getMonth() === month && d.getDate() <= 22;
+        var d = new Date(c.data_pagamento + 'T00:00:00'); // T00:00:00 evita erro de fuso horário
+        return d >= startDate && d <= endDate;
     }).reduce(function(sum, c) { return sum + c.valor_comissao; }, 0);
     
-    // A Receber: parcelas pagas com data até dia 22 do mês ANTERIOR
-    var prevMonth = month === 0 ? 11 : month - 1;
-    var prevYear = month === 0 ? year - 1 : year;
-    
+    // 2. A RECEBER: Soma apenas as que têm o checkbox "Pago" marcado dentro do ciclo
     var aReceber = state.comissoes.filter(function(c) {
         if (!c.pago || !c.data_pagamento) return false;
-        var d = new Date(c.data_pagamento);
-        return d.getFullYear() === prevYear && d.getMonth() === prevMonth && d.getDate() <= 22;
+        var d = new Date(c.data_pagamento + 'T00:00:00');
+        return d >= startDate && d <= endDate;
     }).reduce(function(sum, c) { return sum + c.valor_comissao; }, 0);
     
+    // Atualiza a tela
     document.getElementById('resumoPrevisao').textContent = formatMoney(previsao);
     document.getElementById('resumoReceber').textContent = formatMoney(aReceber);
 }
