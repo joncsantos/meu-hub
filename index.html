@@ -9,21 +9,17 @@
 </head>
 <body>
 
-<!-- TELA DE LOGIN -->
 <div id="login-screen">
     <div class="login-card">
-        <h1> Acesso ao Hub</h1>
+        <h1>🔐 Acesso ao Hub</h1>
         <input type="password" id="loginPassword" placeholder="Digite a senha" onkeypress="if(event.key === 'Enter') checkLogin()">
         <button class="btn btn-primary" style="width:100%" onclick="checkLogin()">Entrar</button>
     </div>
 </div>
 
-<!-- MENU PRINCIPAL (HUB) -->
 <div id="main-menu" class="hidden">
     <h1>🚀 Meu Hub de Atividades</h1>
-    <div class="hub-grid" id="hubGrid">
-        <!-- Cards injetados via JS conforme o perfil -->
-    </div>
+    <div class="hub-grid" id="hubGrid"></div>
     <div style="text-align:center; margin-top:2rem;">
         <button class="btn btn-secondary" onclick="logout()">Sair</button>
     </div>
