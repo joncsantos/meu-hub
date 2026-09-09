@@ -14,6 +14,9 @@
         .resumo-card h3 { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem; }
         .resumo-card .valor { font-size: 2rem; font-weight: 700; color: var(--primary); }
         .resumo-card.previsao .valor { color: var(--warning); }
+        .resumo-card.clicavel { cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+        .resumo-card.clicavel:hover { transform: translateY(-3px); box-shadow: 0 8px 16px rgba(0,0,0,0.1); }
+        .resumo-card.clicavel .valor { text-decoration: underline; text-decoration-style: dotted; }
         .mes-selector-container { margin: 2rem 0; }
         .mes-selector-container h3 { margin-bottom: 1rem; color: var(--text); }
         .mes-scroll { display: flex; gap: 0.5rem; overflow-x: auto; padding: 1rem 0; scrollbar-width: thin; }
@@ -58,9 +61,17 @@
         .pendencia-header { background: var(--bg); font-weight: 600; font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; }
         .pendencia-item input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; }
         
+        /* Modal de Detalhamento */
+        .detalhamento-lista { max-height: 400px; overflow-y: auto; }
+        .detalhamento-item { display: grid; grid-template-columns: 60px 1fr 120px 100px; gap: 1rem; padding: 0.8rem; border-bottom: 1px solid var(--border); align-items: center; }
+        .detalhamento-item:last-child { border-bottom: none; }
+        .detalhamento-item:hover { background: var(--bg); }
+        .detalhamento-total { display: grid; grid-template-columns: 60px 1fr 120px 100px; gap: 1rem; padding: 1rem; background: var(--bg); font-weight: 700; border-top: 2px solid var(--border); }
+        
         @media (max-width: 900px) {
             .pendencia-item { grid-template-columns: 1fr 1fr; gap: 0.5rem; }
             .pendencia-header { display: none; }
+            .detalhamento-item, .detalhamento-total { grid-template-columns: 1fr 1fr; gap: 0.5rem; }
         }
     </style>
 </head>
@@ -91,10 +102,10 @@
                 <p class="valor" id="resumoPrevisao">R$ 0,00</p>
                 <small style="color:var(--text-muted)">Parcelas elegíveis (23 a 22)</small>
             </div>
-            <div class="resumo-card previsao">
+            <div class="resumo-card previsao clicavel" onclick="abrirDetalhamentoReceber()" title="Clique para ver o detalhamento">
                 <h3>Comissão a Receber</h3>
                 <p class="valor" id="resumoReceber">R$ 0,00</p>
-                <small style="color:var(--text-muted)">Pagas e elegíveis</small>
+                <small style="color:var(--text-muted)"> Clique para detalhar</small>
             </div>
         </div>
 
@@ -162,6 +173,19 @@
                 <div>Pago</div>
             </div>
             <div id="pendenciasBody"></div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL DETALHAMENTO COMISSÃO A RECEBER -->
+<div class="modal-overlay" id="modalDetalhamento">
+    <div class="modal" style="max-width: 700px;">
+        <h2>📋 Detalhamento - Comissão a Receber</h2>
+        <p id="detalhamentoPeriodo" style="color:var(--text-muted); margin-bottom:1rem; font-size:0.9rem;"></p>
+        <div class="detalhamento-lista" id="detalhamentoLista"></div>
+        <div class="modal-actions">
+            <div></div>
+            <button class="btn btn-secondary" onclick="closeModal('modalDetalhamento')">Fechar</button>
         </div>
     </div>
 </div>
