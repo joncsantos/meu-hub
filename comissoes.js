@@ -105,7 +105,7 @@ function renderCards() {
     grid.innerHTML = html;
 }
 
-function updateResumo() {
+function getCicloDatas() {
     var year = state.currentYear;
     var month = state.currentMonth;
     var startMonth = month - 2, startYear = year;
@@ -115,21 +115,72 @@ function updateResumo() {
     var startDate = new Date(startYear, startMonth, 23);
     var endDate = new Date(endYear, endMonth, 22);
     endDate.setHours(23, 59, 59, 999);
+    return { startDate: startDate, endDate: endDate, startMonth: startMonth, startYear: startYear, endMonth: endMonth, endYear: endYear };
+}
 
+function updateResumo() {
+    var ciclo = getCicloDatas();
+    
     var previsao = state.comissoes.filter(function(c) {
         if (!c.data_pagamento) return false;
         var d = new Date(c.data_pagamento + 'T00:00:00');
-        return d >= startDate && d <= endDate;
+        return d >= ciclo.startDate && d <= ciclo.endDate;
     }).reduce(function(sum, c) { return sum + c.valor_comissao; }, 0);
     
     var aReceber = state.comissoes.filter(function(c) {
         if (!c.pago || !c.data_pagamento) return false;
         var d = new Date(c.data_pagamento + 'T00:00:00');
-        return d >= startDate && d <= endDate;
+        return d >= ciclo.startDate && d <= ciclo.endDate;
     }).reduce(function(sum, c) { return sum + c.valor_comissao; }, 0);
     
     document.getElementById('resumoPrevisao').textContent = formatMoney(previsao);
     document.getElementById('resumoReceber').textContent = formatMoney(aReceber);
+}
+
+// --- NOVA FUNÇÃO: ABRIR DETALHAMENTO ---
+function abrirDetalhamentoReceber() {
+    var ciclo = getCicloDatas();
+    
+    var parcelasReceber = state.comissoes.filter(function(c) {
+        if (!c.pago || !c.data_pagamento) return false;
+        var d = new Date(c.data_pagamento + 'T00:00:00');
+        return d >= ciclo.startDate && d <= ciclo.endDate;
+    });
+    
+    if (parcelasReceber.length === 0) {
+        alert('Nenhuma comissão a receber no período de ' + formatDate(ciclo.startDate.toISOString().split('T')[0]) + ' a ' + formatDate(ciclo.endDate.toISOString().split('T')[0]) + '.');
+        return;
+    }
+    
+    var periodoTexto = 'Período: ' + formatDate(ciclo.startDate.toISOString().split('T')[0]) + ' a ' + formatDate(ciclo.endDate.toISOString().split('T')[0]) + ' (Mês de referência: ' + months[state.currentMonth] + ' ' + state.currentYear + ')';
+    document.getElementById('detalhamentoPeriodo').textContent = periodoTexto;
+    
+    var lista = document.getElementById('detalhamentoLista');
+    var html = '';
+    
+    // Cabeçalho
+    html += '<div class="detalhamento-item" style="background:var(--bg); font-weight:600; font-size:0.85rem; color:var(--text-muted); text-transform:uppercase;">';
+    html += '<div>Parcela</div><div>Cliente / NF</div><div>Data Pagamento</div><div>Comissão</div>';
+    html += '</div>';
+    
+    var total = 0;
+    parcelasReceber.forEach(function(p) {
+        html += '<div class="detalhamento-item">';
+        html += '<div><strong>' + p.parcela_letra + '</strong></div>';
+        html += '<div>' + p.cliente + '<br><small style="color:var(--text-muted)">' + p.nota_fiscal + '</small></div>';
+        html += '<div>' + formatDate(p.data_pagamento) + '</div>';
+        html += '<div style="color:var(--success); font-weight:600;">' + formatMoney(p.valor_comissao) + '</div>';
+        html += '</div>';
+        total += p.valor_comissao;
+    });
+    
+    // Total
+    html += '<div class="detalhamento-total">';
+    html += '<div></div><div>TOTAL</div><div></div><div style="color:var(--success);">' + formatMoney(total) + '</div>';
+    html += '</div>';
+    
+    lista.innerHTML = html;
+    openModal('modalDetalhamento');
 }
 
 function renderFiltroMes() {
@@ -281,22 +332,14 @@ async function deleteParcela(id) {
 }
 
 function exportarRelatorio() {
-    var year = state.currentYear;
-    var month = state.currentMonth;
-    var startMonth = month - 2, startYear = year;
-    if (startMonth < 0) { startMonth += 12; startYear -= 1; }
-    var endMonth = month - 1, endYear = year;
-    if (endMonth < 0) { endMonth += 12; endYear -= 1; }
-    var startDate = new Date(startYear, startMonth, 23);
-    var endDate = new Date(endYear, endMonth, 22);
-    endDate.setHours(23, 59, 59, 999);
+    var ciclo = getCicloDatas();
     var pendentes = state.comissoes.filter(function(c) {
         if (c.pago) return false;
         if (!c.data_pagamento) return false;
         var d = new Date(c.data_pagamento + 'T00:00:00');
-        return d >= startDate && d <= endDate;
+        return d >= ciclo.startDate && d <= ciclo.endDate;
     });
-    if (pendentes.length === 0) { alert('Nenhuma parcela pendente para ' + months[month] + '/' + year + '.'); return; }
+    if (pendentes.length === 0) { alert('Nenhuma parcela pendente para ' + months[state.currentMonth] + '/' + state.currentYear + '.'); return; }
     var csv = 'Nota Fiscal;Cliente;Parcela;Data Pagamento;Valor Parcela (R$);Valor Comissão (R$);Status\n';
     pendentes.forEach(function(p) {
         csv += '"' + p.nota_fiscal + '";"' + p.cliente + '";"' + p.parcela_letra + '";"' + formatDate(p.data_pagamento) + '";"' + p.valor_parcela.toFixed(2).replace('.', ',') + '";"' + p.valor_comissao.toFixed(2).replace('.', ',') + '";Pendente\n';
@@ -307,7 +350,7 @@ function exportarRelatorio() {
     var blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
     var link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = 'Relatorio_Comissoes_Pendentes_' + months[month] + '_' + year + '.csv';
+    link.download = 'Relatorio_Comissoes_Pendentes_' + months[state.currentMonth] + '_' + state.currentYear + '.csv';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
