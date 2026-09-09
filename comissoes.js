@@ -250,6 +250,7 @@ function renderPendencias() {
     var filtroDataInicio = document.getElementById('filtroDataInicio').value;
     var filtroDataFim = document.getElementById('filtroDataFim').value;
     var filtroPercentual = document.getElementById('filtroPercentual').value;
+
     var pendentes = state.comissoes.filter(function(c) {
         if (c.pago) return false;
         if (filtroNF && !c.nota_fiscal.toLowerCase().includes(filtroNF)) return false;
@@ -261,11 +262,42 @@ function renderPendencias() {
         if (filtroPercentual && parseFloat(c.percentual_comissao) !== parseFloat(filtroPercentual)) return false;
         return true;
     });
-    if (pendentes.length === 0) { body.innerHTML = '<p style="padding:2rem; text-align:center; color:var(--text-muted);">Nenhuma pendência encontrada.</p>'; return; }
+
+    if (pendentes.length === 0) {
+        body.innerHTML = '<p style="padding:2rem; text-align:center; color:var(--text-muted);">Nenhuma pendência encontrada com os filtros aplicados.</p>';
+        return;
+    }
+
     var html = '';
+    var totalParcelas = 0;
+    var totalComissoes = 0;
+
     pendentes.forEach(function(p) {
-        html += '<div class="pendencia-item"><div><strong>' + p.parcela_letra + '</strong></div><div>' + p.cliente + '<br><small style="color:var(--text-muted)">' + p.nota_fiscal + '</small></div><div>' + (p.data_pagamento ? formatDate(p.data_pagamento) : '<em style="color:var(--text-muted)">Sem data</em>') + '</div><div>' + formatMoney(p.valor_parcela) + '</div><div style="color:var(--success); font-weight:600;">' + formatMoney(p.valor_comissao) + '</div><div>' + p.percentual_comissao + '%</div><div><input type="checkbox" onchange="updatePago(' + p.id + ', this.checked)" ' + (currentUserRole !== 'admin' ? 'disabled' : '') + ' title="Marcar como pago"></div></div>';
+        totalParcelas += p.valor_parcela;
+        totalComissoes += p.valor_comissao;
+
+        html += '<div class="pendencia-item">';
+        html += '<div><strong>' + p.parcela_letra + '</strong></div>';
+        html += '<div>' + p.cliente + '<br><small style="color:var(--text-muted)">' + p.nota_fiscal + '</small></div>';
+        html += '<div>' + (p.data_pagamento ? formatDate(p.data_pagamento) : '<em style="color:var(--text-muted)">Sem data</em>') + '</div>';
+        html += '<div>' + formatMoney(p.valor_parcela) + '</div>';
+        html += '<div style="color:var(--success); font-weight:600;">' + formatMoney(p.valor_comissao) + '</div>';
+        html += '<div>' + p.percentual_comissao + '%</div>';
+        html += '<div><input type="checkbox" onchange="updatePago(' + p.id + ', this.checked)" ' + (currentUserRole !== 'admin' ? 'disabled' : '') + ' title="Marcar como pago"></div>';
+        html += '</div>';
     });
+
+    // Linha de totais no final
+    html += '<div class="pendencia-item" style="background:var(--bg); font-weight:700; border-top:2px solid var(--border);">';
+    html += '<div></div>';
+    html += '<div style="text-transform:uppercase; font-size:0.85rem; color:var(--text-muted);">TOTAL (' + pendentes.length + ' parcelas)</div>';
+    html += '<div></div>';
+    html += '<div>' + formatMoney(totalParcelas) + '</div>';
+    html += '<div style="color:var(--success);">' + formatMoney(totalComissoes) + '</div>';
+    html += '<div></div>';
+    html += '<div></div>';
+    html += '</div>';
+
     body.innerHTML = html;
 }
 
