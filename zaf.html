@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Técnica ZAF - Estudos de Inglês</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .zaf-container { max-width: 1400px; margin: 0 auto; padding: 1rem; }
+        .zaf-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem; }
+        .zaf-header h2 { color: var(--primary); }
+        
+        .zaf-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 2px solid var(--border); }
+        .zaf-tab { padding: 0.8rem 1.5rem; cursor: pointer; font-weight: 500; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+        .zaf-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+        .zaf-tab-content { display: none; }
+        .zaf-tab-content.active { display: block; }
+        
+        /* Lista de Temas */
+        .temas-lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+        .tema-card { background: var(--card); padding: 1.2rem; border-radius: 12px; box-shadow: var(--shadow); cursor: pointer; transition: transform 0.2s; border-left: 4px solid var(--primary); }
+        .tema-card:hover { transform: translateY(-3px); }
+        .tema-card h4 { margin-bottom: 0.5rem; }
+        .tema-card small { color: var(--text-muted); }
+        
+        /* Mapa Mental */
+        .mapa-container { position: relative; background: var(--card); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; min-height: 500px; border: 2px dashed var(--border); }
+        .mapa-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+        .mapa-svg line { stroke: #64748b; stroke-width: 2; }
+        .mapa-svg text { font-size: 12px; font-weight: 600; }
+        
+        .palavra-node { position: absolute; padding: 0.6rem 1rem; border-radius: 6px; cursor: move; user-select: none; z-index: 2; box-shadow: 0 2px 4px rgba(0,0,0,0.1); min-width: 80px; text-align: center; }
+        .palavra-node.pt { background: white; color: black; border: 1px solid var(--border); }
+        .palavra-node.en { background: #ef4444; color: black; font-weight: 700; border: 2px solid #b91c1c; }
+        .palavra-node .delete-btn { position: absolute; top: -8px; right: -8px; background: var(--danger); color: white; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; font-size: 12px; display: none; }
+        .palavra-node:hover .delete-btn { display: block; }
+        
+        .mapa-toolbar { position: sticky; top: 0; background: var(--bg); padding: 0.8rem; border-radius: 8px; margin-bottom: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; z-index: 10; box-shadow: var(--shadow); }
+        
+        /* Áudios */
+        .audios-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem; }
+        .audio-slot { background: var(--card); padding: 1rem; border-radius: 12px; box-shadow: var(--shadow); text-align: center; }
+        .audio-slot h5 { margin-bottom: 0.5rem; color: var(--text-muted); }
+        .audio-slot audio { width: 100%; margin-top: 0.5rem; }
+        .audio-slot .btn { margin-top: 0.5rem; }
+        
+        /* Análise Exploratória */
+        .ideias-container { display: grid; grid-template-columns: 1fr 300px; gap: 1.5rem; }
+        @media (max-width: 768px) { .ideias-container { grid-template-columns: 1fr; } }
+        .ideias-form { background: var(--card); padding: 1.5rem; border-radius: 12px; box-shadow: var(--shadow); height: fit-content; }
+        .ideias-lista { background: var(--card); padding: 1.5rem; border-radius: 12px; box-shadow: var(--shadow); max-height: 600px; overflow-y: auto; }
+        .ideia-item { padding: 1rem; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.8rem; background: var(--bg); }
+        .ideia-item .categoria-tag { display: inline-block; padding: 0.2rem 0.6rem; background: var(--primary); color: white; border-radius: 12px; font-size: 0.75rem; margin-bottom: 0.5rem; }
+        .ideia-item .texto { margin-bottom: 0.5rem; }
+        .ideia-item small { color: var(--text-muted); }
+        
+        .admin-only { display: none; }
+        body.admin-mode .admin-only { display: inline-flex; }
+    </style>
+</head>
+<body>
+
+<div class="zaf-container">
+    <div class="zaf-header">
+        <div>
+            <button class="btn btn-secondary btn-sm" onclick="window.location.href='index.html'">← Voltar ao Hub</button>
+            <h2 style="margin-top:0.5rem">🎯 Técnica ZAF - Estudos de Inglês <span id="userBadge" style="font-size:0.8rem; background:var(--bg); padding:0.2rem 0.5rem; border-radius:12px; color:var(--text-muted);"></span></h2>
+        </div>
+    </div>
+
+    <div class="zaf-tabs">
+        <div class="zaf-tab active" onclick="switchZafTab('tab-temas', this)">📚 Meus Temas</div>
+        <div class="zaf-tab" onclick="switchZafTab('tab-ideias', this)"> Análise Exploratória</div>
+    </div>
+
+    <!-- ABA TEMAS -->
+    <div id="tab-temas" class="zaf-tab-content active">
+        <div id="temasView">
+            <div style="margin-bottom:1rem;">
+                <button class="btn btn-primary admin-only" onclick="openModal('modalNovoTema')">+ Novo Tema</button>
+            </div>
+            <div class="temas-lista" id="temasLista"></div>
+        </div>
+
+        <div id="temaDetalheView" style="display:none;">
+            <button class="btn btn-secondary btn-sm" onclick="voltarParaTemas()" style="margin-bottom:1rem;">← Voltar para Temas</button>
+            <h3 id="temaTituloDisplay" style="margin-bottom:0.5rem;"></h3>
+            <small id="temaDataDisplay" style="color:var(--text-muted);"></small>
+
+            <div class="mapa-toolbar admin-only">
+                <button class="btn btn-secondary btn-sm" onclick="adicionarPalavra('pt')">+ Palavra PT</button>
+                <button class="btn btn-secondary btn-sm" onclick="adicionarPalavra('en')">+ Palavra EN</button>
+                <button class="btn btn-secondary btn-sm" onclick="ativarModoConexao()" id="btnConectar">🔗 Conectar Palavras</button>
+                <button class="btn btn-secondary btn-sm" onclick="cancelarModoConexao()" id="btnCancelarConexao" style="display:none;">❌ Cancelar</button>
+            </div>
+
+            <div class="mapa-container" id="mapaContainer">
+                <svg class="mapa-svg" id="mapaSvg"></svg>
+            </div>
+
+            <h3 style="margin-top:2rem; margin-bottom:1rem;">🎙️ Gravações de Áudio</h3>
+            <div class="audios-grid" id="audiosGrid"></div>
+        </div>
+    </div>
+
+    <!-- ABA ANÁLISE EXPLORATÓRIA -->
+    <div id="tab-ideias" class="zaf-tab-content">
+        <div class="ideias-container">
+            <div class="ideias-lista">
+                <h3 style="margin-bottom:1rem;">💡 Minhas Ideias de Estudo</h3>
+                <div id="ideiasLista"></div>
+            </div>
+            <div class="ideias-form">
+                <h3 style="margin-bottom:1rem;">Nova Ideia</h3>
+                <div class="form-group"><label>Categoria/Tag</label><input type="text" id="ideiaCategoria" placeholder="Ex: Gramática, Vocabulário..."></div>
+                <div class="form-group"><label>Ideia</label><textarea id="ideiaTexto" rows="5" style="width:100%; padding:0.7rem; border:1px solid var(--border); border-radius:8px; font-size:1rem; background:var(--bg); resize:vertical;"></textarea></div>
+                <button class="btn btn-primary admin-only" style="width:100%;" onclick="salvarIdeia()">Salvar Ideia</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL NOVO TEMA -->
+<div class="modal-overlay" id="modalNovoTema">
+    <div class="modal">
+        <h2>Novo Tema de Estudo</h2>
+        <div class="form-group"><label>Título do Tema</label><input type="text" id="novoTemaTitulo" placeholder="Ex: Verbos irregulares"></div>
+        <div class="modal-actions">
+            <div></div>
+            <div class="modal-actions-right">
+                <button class="btn btn-secondary" onclick="closeModal('modalNovoTema')">Cancelar</button>
+                <button class="btn btn-primary" onclick="salvarNovoTema()">Criar Tema</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL NOVA PALAVRA -->
+<div class="modal-overlay" id="modalNovaPalavra">
+    <div class="modal">
+        <h2 id="palavraModalTitulo">Nova Palavra</h2>
+        <input type="hidden" id="palavraTipo">
+        <div class="form-group"><label>Palavra em Português</label><input type="text" id="palavraPT" placeholder="Ex: Casa"></div>
+        <div class="form-group"><label>Palavra em Inglês</label><input type="text" id="palavraEN" placeholder="Ex: House"></div>
+        <div class="modal-actions">
+            <div></div>
+            <div class="modal-actions-right">
+                <button class="btn btn-secondary" onclick="closeModal('modalNovaPalavra')">Cancelar</button>
+                <button class="btn btn-primary" onclick="salvarPalavra()">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL CONEXÃO -->
+<div class="modal-overlay" id="modalConexao">
+    <div class="modal">
+        <h2>Nova Conexão</h2>
+        <div class="form-group"><label>Palavra em Português (acima da seta)</label><input type="text" id="conexaoPT" placeholder="Ex: Casa"></div>
+        <div class="form-group"><label>Palavra em Inglês (abaixo da seta - fundo amarelo)</label><input type="text" id="conexaoEN" placeholder="Ex: House"></div>
+        <div class="modal-actions">
+            <div></div>
+            <div class="modal-actions-right">
+                <button class="btn btn-secondary" onclick="closeModal('modalConexao')">Cancelar</button>
+                <button class="btn btn-primary" onclick="salvarConexao()">Criar Conexão</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="zaf.js"></script>
+</body>
+</html>
