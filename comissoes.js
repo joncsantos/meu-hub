@@ -139,6 +139,34 @@ function updateResumo() {
     document.getElementById('resumoReceber').textContent = formatMoney(aReceber);
 }
 
+// --- DETALHAMENTO PREVISÃO (NOVO) ---
+function abrirDetalhamentoPrevisao() {
+    var ciclo = getCicloDatas();
+    var parcelasPrevisao = state.comissoes.filter(function(c) {
+        if (c.pago) return false; 
+        if (!c.data_pagamento) return false;
+        var d = new Date(c.data_pagamento + 'T00:00:00');
+        return d >= ciclo.startDate && d <= ciclo.endDate;
+    });
+    if (parcelasPrevisao.length === 0) { 
+        alert('Nenhuma previsão pendente de pagamento no período de ' + formatDate(ciclo.startDate.toISOString().split('T')[0]) + ' a ' + formatDate(ciclo.endDate.toISOString().split('T')[0]) + '.'); 
+        return; 
+    }
+    var periodoTexto = 'Período: ' + formatDate(ciclo.startDate.toISOString().split('T')[0]) + ' a ' + formatDate(ciclo.endDate.toISOString().split('T')[0]) + ' (Mês de referência: ' + months[state.currentMonth] + ' ' + state.currentYear + ')';
+    document.getElementById('detalhamentoPrevisaoPeriodo').textContent = periodoTexto;
+    var lista = document.getElementById('detalhamentoPrevisaoLista');
+    var html = '<div class="detalhamento-item" style="background:var(--bg); font-weight:600; font-size:0.85rem; color:var(--text-muted); text-transform:uppercase;"><div>Parcela</div><div>Cliente / NF</div><div>Data Pagamento</div><div>Comissão</div></div>';
+    var total = 0;
+    parcelasPrevisao.forEach(function(p) {
+        html += '<div class="detalhamento-item"><div><strong>' + p.parcela_letra + '</strong></div><div>' + p.cliente + '<br><small style="color:var(--text-muted)">' + p.nota_fiscal + '</small></div><div>' + formatDate(p.data_pagamento) + '</div><div style="color:var(--warning); font-weight:600;">' + formatMoney(p.valor_comissao) + '</div></div>';
+        total += p.valor_comissao;
+    });
+    html += '<div class="detalhamento-total"><div></div><div>TOTAL</div><div></div><div style="color:var(--warning);">' + formatMoney(total) + '</div></div>';
+    lista.innerHTML = html;
+    openModal('modalDetalhamentoPrevisao');
+}
+
+// --- DETALHAMENTO A RECEBER ---
 function abrirDetalhamentoReceber() {
     var ciclo = getCicloDatas();
     var parcelasReceber = state.comissoes.filter(function(c) {
@@ -168,12 +196,10 @@ function renderPendentesTab() {
         grid.innerHTML = '<p style="color:var(--text-muted); text-align:center; grid-column:1/-1;">Nenhum lembrete pendente. Clique em "+ Adicionar Lembrete" para começar.</p>';
         return;
     }
-    // Ordenar: não inclusas primeiro, depois inclusas
     var ordenados = state.pendentes.slice().sort(function(a, b) {
         if (a.ja_inclusa === b.ja_inclusa) return 0;
         return a.ja_inclusa ? 1 : -1;
     });
-
     var html = '';
     ordenados.forEach(function(p) {
         var classeInclusa = p.ja_inclusa ? 'inclusa' : '';
@@ -250,7 +276,6 @@ function renderPendencias() {
     var filtroDataInicio = document.getElementById('filtroDataInicio').value;
     var filtroDataFim = document.getElementById('filtroDataFim').value;
     var filtroPercentual = document.getElementById('filtroPercentual').value;
-
     var pendentes = state.comissoes.filter(function(c) {
         if (c.pago) return false;
         if (filtroNF && !c.nota_fiscal.toLowerCase().includes(filtroNF)) return false;
@@ -262,32 +287,17 @@ function renderPendencias() {
         if (filtroPercentual && parseFloat(c.percentual_comissao) !== parseFloat(filtroPercentual)) return false;
         return true;
     });
-
-    if (pendentes.length === 0) {
-        body.innerHTML = '<p style="padding:2rem; text-align:center; color:var(--text-muted);">Nenhuma pendência encontrada com os filtros aplicados.</p>';
-        return;
-    }
-
+    if (pendentes.length === 0) { body.innerHTML = '<p style="padding:2rem; text-align:center; color:var(--text-muted);">Nenhuma pendência encontrada.</p>'; return; }
+    
     var html = '';
     var totalParcelas = 0;
     var totalComissoes = 0;
-
     pendentes.forEach(function(p) {
         totalParcelas += p.valor_parcela;
         totalComissoes += p.valor_comissao;
-
-        html += '<div class="pendencia-item">';
-        html += '<div><strong>' + p.parcela_letra + '</strong></div>';
-        html += '<div>' + p.cliente + '<br><small style="color:var(--text-muted)">' + p.nota_fiscal + '</small></div>';
-        html += '<div>' + (p.data_pagamento ? formatDate(p.data_pagamento) : '<em style="color:var(--text-muted)">Sem data</em>') + '</div>';
-        html += '<div>' + formatMoney(p.valor_parcela) + '</div>';
-        html += '<div style="color:var(--success); font-weight:600;">' + formatMoney(p.valor_comissao) + '</div>';
-        html += '<div>' + p.percentual_comissao + '%</div>';
-        html += '<div><input type="checkbox" onchange="updatePago(' + p.id + ', this.checked)" ' + (currentUserRole !== 'admin' ? 'disabled' : '') + ' title="Marcar como pago"></div>';
-        html += '</div>';
+        html += '<div class="pendencia-item"><div><strong>' + p.parcela_letra + '</strong></div><div>' + p.cliente + '<br><small style="color:var(--text-muted)">' + p.nota_fiscal + '</small></div><div>' + (p.data_pagamento ? formatDate(p.data_pagamento) : '<em style="color:var(--text-muted)">Sem data</em>') + '</div><div>' + formatMoney(p.valor_parcela) + '</div><div style="color:var(--success); font-weight:600;">' + formatMoney(p.valor_comissao) + '</div><div>' + p.percentual_comissao + '%</div><div><input type="checkbox" onchange="updatePago(' + p.id + ', this.checked)" ' + (currentUserRole !== 'admin' ? 'disabled' : '') + ' title="Marcar como pago"></div></div>';
     });
-
-    // Linha de totais no final
+    
     html += '<div class="pendencia-item" style="background:var(--bg); font-weight:700; border-top:2px solid var(--border);">';
     html += '<div></div>';
     html += '<div style="text-transform:uppercase; font-size:0.85rem; color:var(--text-muted);">TOTAL (' + pendentes.length + ' parcelas)</div>';
