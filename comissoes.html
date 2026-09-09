@@ -60,7 +60,6 @@
         .pendencia-header { background: var(--bg); font-weight: 600; font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; }
         .pendencia-item input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; }
         
-        /* Estilos da aba "Precisa Incluir" */
         .pendente-card { background: var(--card); padding: 1.2rem; border-radius: 12px; box-shadow: var(--shadow); border-left: 4px solid var(--warning); transition: all 0.3s; position: relative; }
         .pendente-card.inclusa { border-left-color: var(--success); opacity: 0.6; background: #f8fafc; }
         .pendente-card.inclusa h4 { text-decoration: line-through; color: var(--text-muted); }
@@ -103,7 +102,7 @@
 
     <div class="comissoes-tabs">
         <div class="comissoes-tab active" onclick="switchComissaoTab('tab-principal', this)">💼 Comissões</div>
-        <div class="comissoes-tab" onclick="switchComissaoTab('tab-pendencias', this)">️ Pendências</div>
+        <div class="comissoes-tab" onclick="switchComissaoTab('tab-pendencias', this)">⚠️ Pendências</div>
         <div class="comissoes-tab" onclick="switchComissaoTab('tab-a-incluir', this)">📝 Precisa Incluir</div>
     </div>
 
@@ -113,10 +112,10 @@
             <button class="btn btn-primary" onclick="openModal('modalComissao')">+ Adicionar Comissão</button>
         </div>
         <div class="resumo-cards">
-            <div class="resumo-card">
+            <div class="resumo-card clicavel" onclick="abrirDetalhamentoPrevisao()" title="Clique para ver o detalhamento">
                 <h3>Previsão do Mês</h3>
                 <p class="valor" id="resumoPrevisao">R$ 0,00</p>
-                <small style="color:var(--text-muted)">Parcelas elegíveis (23 a 22)</small>
+                <small style="color:var(--text-muted)">🔍 Clique para detalhar</small>
             </div>
             <div class="resumo-card previsao clicavel" onclick="abrirDetalhamentoReceber()" title="Clique para ver o detalhamento">
                 <h3>Comissão a Receber</h3>
@@ -157,6 +156,16 @@
             <button class="btn btn-warning" onclick="openModal('modalPendente')">+ Adicionar Lembrete</button>
         </div>
         <div class="cards-grid" id="pendentesGrid"></div>
+    </div>
+</div>
+
+<!-- MODAL DETALHAMENTO PREVISÃO -->
+<div class="modal-overlay" id="modalDetalhamentoPrevisao">
+    <div class="modal" style="max-width: 700px;">
+        <h2>📋 Detalhamento - Previsão (Ainda não pagas)</h2>
+        <p id="detalhamentoPrevisaoPeriodo" style="color:var(--text-muted); margin-bottom:1rem; font-size:0.9rem;"></p>
+        <div class="detalhamento-lista" id="detalhamentoPrevisaoLista"></div>
+        <div class="modal-actions"><div></div><button class="btn btn-secondary" onclick="closeModal('modalDetalhamentoPrevisao')">Fechar</button></div>
     </div>
 </div>
 
@@ -203,7 +212,7 @@
 <!-- MODAL ADICIONAR PENDENTE (LEMBRETE) -->
 <div class="modal-overlay" id="modalPendente">
     <div class="modal">
-        <h2> Adicionar Lembrete (Precisa Incluir)</h2>
+        <h2>📝 Adicionar Lembrete (Precisa Incluir)</h2>
         <div class="form-group"><label>Nome do Cliente</label><input type="text" id="pendenteCliente" placeholder="Ex: João Silva"></div>
         <div class="form-group"><label>Número da Nota Fiscal</label><input type="text" id="pendenteNota" placeholder="Ex: NF-001234"></div>
         <div class="form-group"><label>Valor Total (R$)</label><input type="number" id="pendenteValor" step="0.01" placeholder="Ex: 5000.00"></div>
