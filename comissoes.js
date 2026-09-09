@@ -1,9 +1,7 @@
-// --- CONFIGURAÇÃO DO SUPABASE ---
 var SUPABASE_URL = 'https://toewirjnljlnopmsgsjn.supabase.co';
 var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRvZXdpcmpubGpsbm9wbXNnc2puIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3MTgzMTgsImV4cCI6MjEwNDI5NDMxOH0.upa1J5Pr-eN4j55UZOBkVh4OkigSHB5xdraRJFbfWUo';
 var supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// --- ESTADO ---
 var state = {
     comissoes: [],
     currentMonth: new Date().getMonth(),
@@ -12,13 +10,9 @@ var state = {
 var months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 var currentUserRole = null;
 
-// --- INICIALIZAÇÃO ---
 window.addEventListener('DOMContentLoaded', async function() {
     var role = sessionStorage.getItem('userRole');
-    if (!role) {
-        window.location.href = 'index.html';
-        return;
-    }
+    if (!role) { window.location.href = 'index.html'; return; }
     currentUserRole = role;
     applyPermissions();
     await initComissoes();
@@ -26,9 +20,7 @@ window.addEventListener('DOMContentLoaded', async function() {
 
 function applyPermissions() {
     document.getElementById('userBadge').textContent = currentUserRole === 'admin' ? '(Administrador)' : '(Visualização)';
-    if (currentUserRole === 'admin') {
-        document.body.classList.add('admin-mode');
-    }
+    if (currentUserRole === 'admin') document.body.classList.add('admin-mode');
 }
 
 async function initComissoes() {
@@ -36,33 +28,31 @@ async function initComissoes() {
     renderMesScroll();
     renderCards();
     updateResumo();
+    renderFiltroMes();
+    renderPendencias();
 }
 
 async function loadFromSupabase() {
     try {
         var result = await supabaseClient.from('comissoes').select('*').order('criado_em', { ascending: false });
-        if (result.error) {
-            console.error('Erro ao carregar:', result.error);
-            return;
-        }
+        if (result.error) { console.error('Erro ao carregar:', result.error); return; }
         state.comissoes = result.data ? result.data.map(function(c) {
             return {
-                id: c.id,
-                cliente: c.cliente,
-                nota_fiscal: c.nota_fiscal,
-                parcela_letra: c.parcela_letra,
-                valor_parcela: parseFloat(c.valor_parcela),
-                percentual_comissao: parseFloat(c.percentual_comissao),
-                valor_comissao: parseFloat(c.valor_comissao),
-                data_pagamento: c.data_pagamento,
-                pago: c.pago || false,
-                mes_referencia: c.mes_referencia,
-                criado_em: c.criado_em
+                id: c.id, cliente: c.cliente, nota_fiscal: c.nota_fiscal, parcela_letra: c.parcela_letra,
+                valor_parcela: parseFloat(c.valor_parcela), percentual_comissao: parseFloat(c.percentual_comissao),
+                valor_comissao: parseFloat(c.valor_comissao), data_pagamento: c.data_pagamento,
+                pago: c.pago || false, mes_referencia: c.mes_referencia, criado_em: c.criado_em
             };
         }) : [];
-    } catch (error) {
-        console.error('Erro ao carregar comissões:', error);
-    }
+    } catch (error) { console.error('Erro ao carregar comissões:', error); }
+}
+
+function switchComissaoTab(tabId, element) {
+    document.querySelectorAll('.tab-content').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.comissoes-tab').forEach(function(t) { t.classList.remove('active'); });
+    document.getElementById(tabId).classList.add('active');
+    element.classList.add('active');
+    if (tabId === 'tab-pendencias') renderPendencias();
 }
 
 function renderMesScroll() {
@@ -83,92 +73,55 @@ function changeMonth(index) {
 
 function renderCards() {
     var grid = document.getElementById('cardsGrid');
-    var year = state.currentYear;
-    var month = state.currentMonth;
-    
-    // Agrupar comissões por cliente e nota fiscal
     var grupos = {};
     state.comissoes.forEach(function(c) {
         var key = c.cliente + '|' + c.nota_fiscal;
-        if (!grupos[key]) {
-            grupos[key] = { cliente: c.cliente, nota: c.nota_fiscal, parcelas: [] };
-        }
+        if (!grupos[key]) grupos[key] = { cliente: c.cliente, nota: c.nota_fiscal, parcelas: [] };
         grupos[key].parcelas.push(c);
     });
     
     if (Object.keys(grupos).length === 0) {
-        grid.innerHTML = '<p style="color:var(--text-muted); text-align:center; grid-column:1/-1;">Nenhuma comissão cadastrada. Clique em "+ Adicionar Comissão" para começar.</p>';
+        grid.innerHTML = '<p style="color:var(--text-muted); text-align:center; grid-column:1/-1;">Nenhuma comissão cadastrada.</p>';
         return;
     }
     
     var html = '';
     Object.keys(grupos).forEach(function(key) {
         var grupo = grupos[key];
-        var parcelasOrdenadas = grupo.parcelas.sort(function(a, b) {
-            return a.parcela_letra.localeCompare(b.parcela_letra);
-        });
-        
-        html += '<div class="comissao-card">';
-        html += '<div class="comissao-card-header">';
-        html += '<h4>' + grupo.cliente + '</h4>';
-        html += '<p>Nota Fiscal: ' + grupo.nota + '</p>';
-        html += '</div>';
-        html += '<div class="parcelas-list">';
-        
+        var parcelasOrdenadas = grupo.parcelas.sort(function(a, b) { return a.parcela_letra.localeCompare(b.parcela_letra); });
+        html += '<div class="comissao-card"><div class="comissao-card-header"><h4>' + grupo.cliente + '</h4><p>Nota Fiscal: ' + grupo.nota + '</p></div><div class="parcelas-list">';
         parcelasOrdenadas.forEach(function(p) {
             var isPaga = p.pago ? 'paga' : '';
             var dataDisplay = p.data_pagamento ? formatDate(p.data_pagamento) : 'Não definida';
-            var comissaoDisplay = formatMoney(p.valor_comissao);
-            
-            html += '<div class="parcela-item ' + isPaga + '">';
-            html += '<div class="parcela-info">';
-            html += '<span class="parcela-letra">' + p.parcela_letra + '</span>';
-            html += '<span class="parcela-valor">R$ ' + p.valor_parcela.toFixed(2).replace('.', ',') + '</span>';
-            html += '<div class="parcela-comissao">Comissão: ' + comissaoDisplay + '</div>';
-            html += '<small style="color:var(--text-muted); display:block; margin-top:0.3rem;">Data: ' + dataDisplay + '</small>';
-            html += '</div>';
-            html += '<div class="parcela-actions">';
-            html += '<input type="date" value="' + (p.data_pagamento || '') + '" onchange="updateDataPagamento(' + p.id + ', this.value)" ' + (currentUserRole !== 'admin' ? 'disabled' : '') + '>';
-            html += '<input type="checkbox" ' + (p.pago ? 'checked' : '') + ' onchange="updatePago(' + p.id + ', this.checked)" ' + (currentUserRole !== 'admin' ? 'disabled' : '') + ' title="Pago">';
+            html += '<div class="parcela-item ' + isPaga + '"><div class="parcela-info"><span class="parcela-letra">' + p.parcela_letra + '</span><span class="parcela-valor">R$ ' + p.valor_parcela.toFixed(2).replace('.', ',') + '</span><div class="parcela-comissao">Comissão: ' + formatMoney(p.valor_comissao) + '</div><small style="color:var(--text-muted); display:block; margin-top:0.3rem;">Data: ' + dataDisplay + '</small></div><div class="parcela-actions"><input type="date" value="' + (p.data_pagamento || '') + '" onchange="updateDataPagamento(' + p.id + ', this.value)" ' + (currentUserRole !== 'admin' ? 'disabled' : '') + '><input type="checkbox" ' + (p.pago ? 'checked' : '') + ' onchange="updatePago(' + p.id + ', this.checked)" ' + (currentUserRole !== 'admin' ? 'disabled' : '') + ' title="Pago">';
             if (currentUserRole === 'admin') {
                 html += '<button class="btn btn-warning btn-sm" onclick="editParcela(' + p.id + ')">✏️</button>';
-                html += '<button class="btn btn-danger btn-sm" onclick="deleteParcela(' + p.id + ')">️</button>';
+                html += '<button class="btn btn-danger btn-sm" onclick="deleteParcela(' + p.id + ')">🗑️</button>';
             }
-            html += '</div>';
-            html += '</div>';
+            html += '</div></div>';
         });
-        
         html += '</div></div>';
     });
-    
     grid.innerHTML = html;
 }
 
 function updateResumo() {
     var year = state.currentYear;
     var month = state.currentMonth;
-    
-    // Lógica do Ciclo (23 a 22)
-    var startMonth = month - 2; 
-    var startYear = year;
+    var startMonth = month - 2, startYear = year;
     if (startMonth < 0) { startMonth += 12; startYear -= 1; }
-    
-    var endMonth = month - 1; 
-    var endYear = year;
+    var endMonth = month - 1, endYear = year;
     if (endMonth < 0) { endMonth += 12; endYear -= 1; }
-    
     var startDate = new Date(startYear, startMonth, 23);
     var endDate = new Date(endYear, endMonth, 22);
     endDate.setHours(23, 59, 59, 999);
 
-    // 1. PREVISÃO
     var previsao = state.comissoes.filter(function(c) {
         if (!c.data_pagamento) return false;
         var d = new Date(c.data_pagamento + 'T00:00:00');
         return d >= startDate && d <= endDate;
     }).reduce(function(sum, c) { return sum + c.valor_comissao; }, 0);
     
-    // 2. A RECEBER
     var aReceber = state.comissoes.filter(function(c) {
         if (!c.pago || !c.data_pagamento) return false;
         var d = new Date(c.data_pagamento + 'T00:00:00');
@@ -179,227 +132,185 @@ function updateResumo() {
     document.getElementById('resumoReceber').textContent = formatMoney(aReceber);
 }
 
+function renderFiltroMes() {
+    var select = document.getElementById('filtroMes');
+    var html = '<option value="">Todos</option>';
+    var mesesUnicos = {};
+    state.comissoes.forEach(function(c) {
+        if (c.mes_referencia) mesesUnicos[c.mes_referencia] = true;
+    });
+    Object.keys(mesesUnicos).sort().forEach(function(m) {
+        var partes = m.split('-');
+        var nomeMes = months[parseInt(partes[1]) - 1] || m;
+        html += '<option value="' + m + '">' + nomeMes + ' ' + partes[0] + '</option>';
+    });
+    select.innerHTML = html;
+}
+
+function renderPendencias() {
+    var body = document.getElementById('pendenciasBody');
+    var filtroNF = document.getElementById('filtroNF').value.toLowerCase();
+    var filtroCliente = document.getElementById('filtroCliente').value.toLowerCase();
+    var filtroMes = document.getElementById('filtroMes').value;
+    var filtroValorMin = parseFloat(document.getElementById('filtroValorMin').value) || 0;
+    var filtroValorMax = parseFloat(document.getElementById('filtroValorMax').value) || 999999999;
+    var filtroDataInicio = document.getElementById('filtroDataInicio').value;
+    var filtroDataFim = document.getElementById('filtroDataFim').value;
+    var filtroPercentual = document.getElementById('filtroPercentual').value;
+
+    var pendentes = state.comissoes.filter(function(c) {
+        if (c.pago) return false;
+        if (filtroNF && !c.nota_fiscal.toLowerCase().includes(filtroNF)) return false;
+        if (filtroCliente && !c.cliente.toLowerCase().includes(filtroCliente)) return false;
+        if (filtroMes && c.mes_referencia !== filtroMes) return false;
+        if (c.valor_parcela < filtroValorMin || c.valor_parcela > filtroValorMax) return false;
+        if (filtroDataInicio && (!c.data_pagamento || c.data_pagamento < filtroDataInicio)) return false;
+        if (filtroDataFim && (!c.data_pagamento || c.data_pagamento > filtroDataFim)) return false;
+        if (filtroPercentual && parseFloat(c.percentual_comissao) !== parseFloat(filtroPercentual)) return false;
+        return true;
+    });
+
+    if (pendentes.length === 0) {
+        body.innerHTML = '<p style="padding:2rem; text-align:center; color:var(--text-muted);">Nenhuma pendência encontrada com os filtros aplicados.</p>';
+        return;
+    }
+
+    var html = '';
+    pendentes.forEach(function(p) {
+        html += '<div class="pendencia-item">';
+        html += '<div><strong>' + p.parcela_letra + '</strong></div>';
+        html += '<div>' + p.cliente + '<br><small style="color:var(--text-muted)">' + p.nota_fiscal + '</small></div>';
+        html += '<div>' + (p.data_pagamento ? formatDate(p.data_pagamento) : '<em style="color:var(--text-muted)">Sem data</em>') + '</div>';
+        html += '<div>' + formatMoney(p.valor_parcela) + '</div>';
+        html += '<div style="color:var(--success); font-weight:600;">' + formatMoney(p.valor_comissao) + '</div>';
+        html += '<div>' + p.percentual_comissao + '%</div>';
+        html += '<div><input type="checkbox" onchange="updatePago(' + p.id + ', this.checked)" ' + (currentUserRole !== 'admin' ? 'disabled' : '') + ' title="Marcar como pago"></div>';
+        html += '</div>';
+    });
+    body.innerHTML = html;
+}
+
 async function saveComissao() {
     if (currentUserRole !== 'admin') return;
-    
     var cliente = document.getElementById('comissaoCliente').value;
     var nota = document.getElementById('comissaoNota').value;
     var parcelas = parseInt(document.getElementById('comissaoParcelas').value);
     var valor = parseFloat(document.getElementById('comissaoValor').value);
     var percentual = parseFloat(document.getElementById('comissaoPercentual').value);
-    
-    if (!cliente || !nota || !parcelas || !valor) {
-        alert('Preencha todos os campos!');
-        return;
-    }
-    
+    if (!cliente || !nota || !parcelas || !valor) { alert('Preencha todos os campos!'); return; }
     var letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
     var newComissoes = [];
     var mesRef = state.currentYear + '-' + String(state.currentMonth + 1).padStart(2, '0');
-    
     for (var i = 0; i < parcelas; i++) {
         var letra = letras[i] || ('P' + (i + 1));
         var valorComissao = (valor * 0.77) * (percentual / 100);
-        
-        newComissoes.push({
-            cliente: cliente,
-            nota_fiscal: nota,
-            parcela_letra: letra,
-            valor_parcela: valor,
-            percentual_comissao: percentual,
-            valor_comissao: valorComissao,
-            data_pagamento: null,
-            pago: false,
-            mes_referencia: mesRef
-        });
+        newComissoes.push({ cliente: cliente, nota_fiscal: nota, parcela_letra: letra, valor_parcela: valor, percentual_comissao: percentual, valor_comissao: valorComissao, data_pagamento: null, pago: false, mes_referencia: mesRef });
     }
-    
     var result = await supabaseClient.from('comissoes').insert(newComissoes);
-    
-    if (result.error) {
-        console.error('Erro detalhado:', result.error);
-        alert('Erro ao salvar comissão: ' + result.error.message);
-        return;
-    }
-    
+    if (result.error) { alert('Erro ao salvar: ' + result.error.message); return; }
     closeModal('modalComissao');
     clearForm('modalComissao');
     await loadFromSupabase();
     renderCards();
     updateResumo();
+    renderFiltroMes();
+    renderPendencias();
     alert('Comissão adicionada com sucesso!');
 }
 
 async function updateDataPagamento(id, data) {
     if (currentUserRole !== 'admin') return;
-    
-    var result = await supabaseClient.from('comissoes').update({ data_pagamento: data }).eq('id', id);
-    if (result.error) {
-        console.error('Erro ao atualizar data:', result.error);
-        return;
-    }
-    
+    await supabaseClient.from('comissoes').update({ data_pagamento: data }).eq('id', id);
     var parcela = state.comissoes.find(function(c) { return c.id === id; });
-    if (parcela) {
-        parcela.data_pagamento = data;
-    }
+    if (parcela) parcela.data_pagamento = data;
     updateResumo();
+    renderPendencias();
 }
 
 async function updatePago(id, pago) {
     if (currentUserRole !== 'admin') return;
-    
-    var result = await supabaseClient.from('comissoes').update({ pago: pago }).eq('id', id);
-    if (result.error) {
-        console.error('Erro ao atualizar pago:', result.error);
-        return;
-    }
-    
+    await supabaseClient.from('comissoes').update({ pago: pago }).eq('id', id);
     var parcela = state.comissoes.find(function(c) { return c.id === id; });
-    if (parcela) {
-        parcela.pago = pago;
-    }
+    if (parcela) parcela.pago = pago;
     renderCards();
     updateResumo();
+    renderPendencias();
 }
 
 function editParcela(id) {
     if (currentUserRole !== 'admin') return;
-    
     var parcela = state.comissoes.find(function(c) { return c.id === id; });
     if (!parcela) return;
-    
     document.getElementById('editCliente').value = parcela.cliente;
     document.getElementById('editNota').value = parcela.nota_fiscal;
     document.getElementById('editValor').value = parcela.valor_parcela;
     document.getElementById('editPercentual').value = parcela.percentual_comissao;
     document.getElementById('editParcelaId').value = parcela.id;
-    
     openModal('modalEditarParcela');
 }
 
 async function saveEditParcela() {
     if (currentUserRole !== 'admin') return;
-    
     var id = parseInt(document.getElementById('editParcelaId').value);
     var cliente = document.getElementById('editCliente').value;
     var nota = document.getElementById('editNota').value;
     var valor = parseFloat(document.getElementById('editValor').value);
     var percentual = parseFloat(document.getElementById('editPercentual').value);
-    
-    if (!cliente || !nota || !valor) {
-        alert('Preencha todos os campos!');
-        return;
-    }
-    
+    if (!cliente || !nota || !valor) { alert('Preencha todos os campos!'); return; }
     var valorComissao = (valor * 0.77) * (percentual / 100);
-    
-    var result = await supabaseClient
-        .from('comissoes')
-        .update({ 
-            cliente: cliente, 
-            nota_fiscal: nota, 
-            valor_parcela: valor, 
-            percentual_comissao: percentual, 
-            valor_comissao: valorComissao 
-        })
-        .eq('id', id);
-    
-    if (result.error) {
-        console.error('Erro ao editar:', result.error);
-        alert('Erro ao salvar edições: ' + result.error.message);
-        return;
-    }
-    
+    var result = await supabaseClient.from('comissoes').update({ cliente: cliente, nota_fiscal: nota, valor_parcela: valor, percentual_comissao: percentual, valor_comissao: valorComissao }).eq('id', id);
+    if (result.error) { alert('Erro: ' + result.error.message); return; }
     closeModal('modalEditarParcela');
     await loadFromSupabase();
     renderCards();
     updateResumo();
-    alert('Parcela atualizada com sucesso!');
+    renderFiltroMes();
+    renderPendencias();
+    alert('Parcela atualizada!');
 }
 
 async function deleteParcela(id) {
     if (currentUserRole !== 'admin') return;
     if (!confirm('Tem certeza que deseja excluir esta parcela?')) return;
-    
-    var result = await supabaseClient.from('comissoes').delete().eq('id', id);
-    if (result.error) {
-        console.error('Erro ao excluir:', result.error);
-        return;
-    }
-    
+    await supabaseClient.from('comissoes').delete().eq('id', id);
     await loadFromSupabase();
     renderCards();
     updateResumo();
+    renderFiltroMes();
+    renderPendencias();
 }
 
-// --- NOVA FUNÇÃO: EXPORTAR RELATÓRIO ---
 function exportarRelatorio() {
     var year = state.currentYear;
     var month = state.currentMonth;
-    
-    // Calcular período do ciclo (23 a 22)
-    var startMonth = month - 2;
-    var startYear = year;
+    var startMonth = month - 2, startYear = year;
     if (startMonth < 0) { startMonth += 12; startYear -= 1; }
-    
-    var endMonth = month - 1;
-    var endYear = year;
+    var endMonth = month - 1, endYear = year;
     if (endMonth < 0) { endMonth += 12; endYear -= 1; }
-    
     var startDate = new Date(startYear, startMonth, 23);
     var endDate = new Date(endYear, endMonth, 22);
     endDate.setHours(23, 59, 59, 999);
-    
-    // Filtrar apenas parcelas PENDENTES (não pagas) com data dentro do ciclo
     var pendentes = state.comissoes.filter(function(c) {
-        if (c.pago) return false; // Ignora as já pagas
-        if (!c.data_pagamento) return false; // Ignora sem data definida
+        if (c.pago) return false;
+        if (!c.data_pagamento) return false;
         var d = new Date(c.data_pagamento + 'T00:00:00');
         return d >= startDate && d <= endDate;
     });
-    
-    if (pendentes.length === 0) {
-        alert('Nenhuma parcela pendente encontrada para o mês de ' + months[month] + '/' + year + '.');
-        return;
-    }
-    
-    // Montar CSV
+    if (pendentes.length === 0) { alert('Nenhuma parcela pendente para ' + months[month] + '/' + year + '.'); return; }
     var csv = 'Nota Fiscal;Cliente;Parcela;Data Pagamento;Valor Parcela (R$);Valor Comissão (R$);Status\n';
-    
     pendentes.forEach(function(p) {
-        var dataFormatada = formatDate(p.data_pagamento);
-        var valorParcela = p.valor_parcela.toFixed(2).replace('.', ',');
-        var valorComissao = p.valor_comissao.toFixed(2).replace('.', ',');
-        
-        csv += '"' + p.nota_fiscal + '";';
-        csv += '"' + p.cliente + '";';
-        csv += '"' + p.parcela_letra + '";';
-        csv += '"' + dataFormatada + '";';
-        csv += '"' + valorParcela + '";';
-        csv += '"' + valorComissao + '";';
-        csv += 'Pendente\n';
+        csv += '"' + p.nota_fiscal + '";"' + p.cliente + '";"' + p.parcela_letra + '";"' + formatDate(p.data_pagamento) + '";"' + p.valor_parcela.toFixed(2).replace('.', ',') + '";"' + p.valor_comissao.toFixed(2).replace('.', ',') + '";Pendente\n';
     });
-    
-    // Adicionar totais
     var totalParcelas = pendentes.reduce(function(sum, p) { return sum + p.valor_parcela; }, 0);
     var totalComissoes = pendentes.reduce(function(sum, p) { return sum + p.valor_comissao; }, 0);
-    
-    csv += '\n';
-    csv += ';;TOTAL;;' + totalParcelas.toFixed(2).replace('.', ',') + ';' + totalComissoes.toFixed(2).replace('.', ',') + ';\n';
-    
-    // Criar arquivo e fazer download
+    csv += '\n;;TOTAL;;' + totalParcelas.toFixed(2).replace('.', ',') + ';' + totalComissoes.toFixed(2).replace('.', ',') + ';\n';
     var blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
     var link = document.createElement('a');
-    var url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'Relatorio_Comissoes_Pendentes_' + months[month] + '_' + year + '.csv');
-    link.style.visibility = 'hidden';
+    link.href = URL.createObjectURL(blob);
+    link.download = 'Relatorio_Comissoes_Pendentes_' + months[month] + '_' + year + '.csv';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
-    alert('Relatório exportado com sucesso! ' + pendentes.length + ' parcela(s) pendente(s).');
 }
 
 function formatDate(dateStr) {
@@ -412,14 +323,8 @@ function formatMoney(value) {
     return 'R$ ' + value.toFixed(2).replace('.', ',');
 }
 
-function openModal(id) {
-    document.getElementById(id).classList.add('active');
-}
-
-function closeModal(id) {
-    document.getElementById(id).classList.remove('active');
-}
-
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 function clearForm(id) {
     document.querySelectorAll('#' + id + ' input').forEach(function(input) {
         if (input.type !== 'hidden') input.value = '';
