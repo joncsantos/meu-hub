@@ -43,8 +43,7 @@
         .relatorio-btn { background: var(--success); color: white; }
         .relatorio-btn:hover { background: #059669; }
         
-        /* Aba Pendências */
-        .comissoes-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 2px solid var(--border); }
+        .comissoes-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 2px solid var(--border); flex-wrap: wrap; }
         .comissoes-tab { padding: 0.8rem 1.5rem; cursor: pointer; font-weight: 500; border-bottom: 3px solid transparent; margin-bottom: -2px; }
         .comissoes-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
         .tab-content { display: none; }
@@ -61,7 +60,21 @@
         .pendencia-header { background: var(--bg); font-weight: 600; font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; }
         .pendencia-item input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; }
         
-        /* Modal de Detalhamento */
+        /* Estilos da aba "Precisa Incluir" */
+        .pendente-card { background: var(--card); padding: 1.2rem; border-radius: 12px; box-shadow: var(--shadow); border-left: 4px solid var(--warning); transition: all 0.3s; position: relative; }
+        .pendente-card.inclusa { border-left-color: var(--success); opacity: 0.6; background: #f8fafc; }
+        .pendente-card.inclusa h4 { text-decoration: line-through; color: var(--text-muted); }
+        .pendente-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.8rem; }
+        .pendente-card-header h4 { margin: 0; font-size: 1.1rem; }
+        .pendente-card-header .badge { background: var(--warning); color: white; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+        .pendente-card.inclusa .badge { background: var(--success); }
+        .pendente-info { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 1rem; font-size: 0.9rem; }
+        .pendente-info div { color: var(--text-muted); }
+        .pendente-info strong { color: var(--text); display: block; }
+        .pendente-actions { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 0.8rem; }
+        .checkbox-label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 500; font-size: 0.9rem; }
+        .checkbox-label input { width: 18px; height: 18px; cursor: pointer; }
+
         .detalhamento-lista { max-height: 400px; overflow-y: auto; }
         .detalhamento-item { display: grid; grid-template-columns: 60px 1fr 120px 100px; gap: 1rem; padding: 0.8rem; border-bottom: 1px solid var(--border); align-items: center; }
         .detalhamento-item:last-child { border-bottom: none; }
@@ -85,17 +98,20 @@
         </div>
         <div class="header-actions admin-only">
             <button class="btn relatorio-btn" onclick="exportarRelatorio()">📊 Exportar Relatório</button>
-            <button class="btn btn-primary" onclick="openModal('modalComissao')">+ Adicionar Comissão</button>
         </div>
     </div>
 
     <div class="comissoes-tabs">
         <div class="comissoes-tab active" onclick="switchComissaoTab('tab-principal', this)">💼 Comissões</div>
-        <div class="comissoes-tab" onclick="switchComissaoTab('tab-pendencias', this)">⚠️ Pendências</div>
+        <div class="comissoes-tab" onclick="switchComissaoTab('tab-pendencias', this)">️ Pendências</div>
+        <div class="comissoes-tab" onclick="switchComissaoTab('tab-a-incluir', this)">📝 Precisa Incluir</div>
     </div>
 
     <!-- ABA PRINCIPAL -->
     <div id="tab-principal" class="tab-content active">
+        <div class="header-actions admin-only" style="margin-bottom: 1rem; justify-content: flex-end;">
+            <button class="btn btn-primary" onclick="openModal('modalComissao')">+ Adicionar Comissão</button>
+        </div>
         <div class="resumo-cards">
             <div class="resumo-card">
                 <h3>Previsão do Mês</h3>
@@ -105,7 +121,7 @@
             <div class="resumo-card previsao clicavel" onclick="abrirDetalhamentoReceber()" title="Clique para ver o detalhamento">
                 <h3>Comissão a Receber</h3>
                 <p class="valor" id="resumoReceber">R$ 0,00</p>
-                <small style="color:var(--text-muted)"> Clique para detalhar</small>
+                <small style="color:var(--text-muted)">🔍 Clique para detalhar</small>
             </div>
         </div>
 
@@ -120,60 +136,27 @@
     <!-- ABA PENDÊNCIAS -->
     <div id="tab-pendencias" class="tab-content">
         <div class="filtros-container">
-            <div class="filtro-group">
-                <label>Nota Fiscal</label>
-                <input type="text" id="filtroNF" placeholder="Buscar NF..." oninput="renderPendencias()">
-            </div>
-            <div class="filtro-group">
-                <label>Cliente</label>
-                <input type="text" id="filtroCliente" placeholder="Buscar cliente..." oninput="renderPendencias()">
-            </div>
-            <div class="filtro-group">
-                <label>Mês de Referência</label>
-                <select id="filtroMes" onchange="renderPendencias()">
-                    <option value="">Todos</option>
-                </select>
-            </div>
-            <div class="filtro-group">
-                <label>Valor Mín. Parcela (R$)</label>
-                <input type="number" id="filtroValorMin" step="0.01" placeholder="0,00" oninput="renderPendencias()">
-            </div>
-            <div class="filtro-group">
-                <label>Valor Máx. Parcela (R$)</label>
-                <input type="number" id="filtroValorMax" step="0.01" placeholder="999999" oninput="renderPendencias()">
-            </div>
-            <div class="filtro-group">
-                <label>Data Início</label>
-                <input type="date" id="filtroDataInicio" onchange="renderPendencias()">
-            </div>
-            <div class="filtro-group">
-                <label>Data Fim</label>
-                <input type="date" id="filtroDataFim" onchange="renderPendencias()">
-            </div>
-            <div class="filtro-group">
-                <label>Percentual Comissão</label>
-                <select id="filtroPercentual" onchange="renderPendencias()">
-                    <option value="">Todos</option>
-                    <option value="1">1%</option>
-                    <option value="0.9">0.9%</option>
-                    <option value="0.8">0.8%</option>
-                    <option value="0.7">0.7%</option>
-                </select>
-            </div>
+            <div class="filtro-group"><label>Nota Fiscal</label><input type="text" id="filtroNF" placeholder="Buscar NF..." oninput="renderPendencias()"></div>
+            <div class="filtro-group"><label>Cliente</label><input type="text" id="filtroCliente" placeholder="Buscar cliente..." oninput="renderPendencias()"></div>
+            <div class="filtro-group"><label>Mês de Referência</label><select id="filtroMes" onchange="renderPendencias()"><option value="">Todos</option></select></div>
+            <div class="filtro-group"><label>Valor Mín. Parcela (R$)</label><input type="number" id="filtroValorMin" step="0.01" placeholder="0,00" oninput="renderPendencias()"></div>
+            <div class="filtro-group"><label>Valor Máx. Parcela (R$)</label><input type="number" id="filtroValorMax" step="0.01" placeholder="999999" oninput="renderPendencias()"></div>
+            <div class="filtro-group"><label>Data Início</label><input type="date" id="filtroDataInicio" onchange="renderPendencias()"></div>
+            <div class="filtro-group"><label>Data Fim</label><input type="date" id="filtroDataFim" onchange="renderPendencias()"></div>
+            <div class="filtro-group"><label>Percentual Comissão</label><select id="filtroPercentual" onchange="renderPendencias()"><option value="">Todos</option><option value="1">1%</option><option value="0.9">0.9%</option><option value="0.8">0.8%</option><option value="0.7">0.7%</option></select></div>
         </div>
-
         <div class="pendencias-lista">
-            <div class="pendencia-item pendencia-header">
-                <div>Parcela</div>
-                <div>Cliente / NF</div>
-                <div>Data Pagamento</div>
-                <div>Valor Parcela</div>
-                <div>Comissão</div>
-                <div>Percentual</div>
-                <div>Pago</div>
-            </div>
+            <div class="pendencia-item pendencia-header"><div>Parcela</div><div>Cliente / NF</div><div>Data Pagamento</div><div>Valor Parcela</div><div>Comissão</div><div>Percentual</div><div>Pago</div></div>
             <div id="pendenciasBody"></div>
         </div>
+    </div>
+
+    <!-- ABA PRECISA INCLUIR -->
+    <div id="tab-a-incluir" class="tab-content">
+        <div class="header-actions admin-only" style="margin-bottom: 1rem; justify-content: flex-end;">
+            <button class="btn btn-warning" onclick="openModal('modalPendente')">+ Adicionar Lembrete</button>
+        </div>
+        <div class="cards-grid" id="pendentesGrid"></div>
     </div>
 </div>
 
@@ -183,10 +166,7 @@
         <h2>📋 Detalhamento - Comissão a Receber</h2>
         <p id="detalhamentoPeriodo" style="color:var(--text-muted); margin-bottom:1rem; font-size:0.9rem;"></p>
         <div class="detalhamento-lista" id="detalhamentoLista"></div>
-        <div class="modal-actions">
-            <div></div>
-            <button class="btn btn-secondary" onclick="closeModal('modalDetalhamento')">Fechar</button>
-        </div>
+        <div class="modal-actions"><div></div><button class="btn btn-secondary" onclick="closeModal('modalDetalhamento')">Fechar</button></div>
     </div>
 </div>
 
@@ -199,20 +179,9 @@
         <div class="form-group"><label>Quantidade de Parcelas</label><input type="number" id="comissaoParcelas" min="1" max="24" placeholder="Ex: 12"></div>
         <div class="form-group"><label>Valor da Parcela (R$)</label><input type="number" id="comissaoValor" step="0.01" placeholder="Ex: 1000.00"></div>
         <div class="form-group"><label>Percentual da Comissão</label>
-            <select id="comissaoPercentual">
-                <option value="1">1% (Padrão)</option>
-                <option value="0.9">0.9%</option>
-                <option value="0.8">0.8%</option>
-                <option value="0.7">0.7%</option>
-            </select>
+            <select id="comissaoPercentual"><option value="1">1% (Padrão)</option><option value="0.9">0.9%</option><option value="0.8">0.8%</option><option value="0.7">0.7%</option></select>
         </div>
-        <div class="modal-actions">
-            <div></div>
-            <div class="modal-actions-right">
-                <button class="btn btn-secondary" onclick="closeModal('modalComissao')">Cancelar</button>
-                <button class="btn btn-primary admin-only" onclick="saveComissao()">Salvar</button>
-            </div>
-        </div>
+        <div class="modal-actions"><div></div><div class="modal-actions-right"><button class="btn btn-secondary" onclick="closeModal('modalComissao')">Cancelar</button><button class="btn btn-primary admin-only" onclick="saveComissao()">Salvar</button></div></div>
     </div>
 </div>
 
@@ -221,24 +190,25 @@
     <div class="modal">
         <h2>Editar Comissão</h2>
         <input type="hidden" id="editParcelaId">
-        <div class="form-group"><label>Nome do Cliente</label><input type="text" id="editCliente" placeholder="Ex: João Silva"></div>
-        <div class="form-group"><label>Número da Nota Fiscal</label><input type="text" id="editNota" placeholder="Ex: NF-001234"></div>
-        <div class="form-group"><label>Valor da Parcela (R$)</label><input type="number" id="editValor" step="0.01" placeholder="Ex: 1000.00"></div>
+        <div class="form-group"><label>Nome do Cliente</label><input type="text" id="editCliente"></div>
+        <div class="form-group"><label>Número da Nota Fiscal</label><input type="text" id="editNota"></div>
+        <div class="form-group"><label>Valor da Parcela (R$)</label><input type="number" id="editValor" step="0.01"></div>
         <div class="form-group"><label>Percentual da Comissão</label>
-            <select id="editPercentual">
-                <option value="1">1% (Padrão)</option>
-                <option value="0.9">0.9%</option>
-                <option value="0.8">0.8%</option>
-                <option value="0.7">0.7%</option>
-            </select>
+            <select id="editPercentual"><option value="1">1%</option><option value="0.9">0.9%</option><option value="0.8">0.8%</option><option value="0.7">0.7%</option></select>
         </div>
-        <div class="modal-actions">
-            <div></div>
-            <div class="modal-actions-right">
-                <button class="btn btn-secondary" onclick="closeModal('modalEditarParcela')">Cancelar</button>
-                <button class="btn btn-primary" onclick="saveEditParcela()">Salvar Alterações</button>
-            </div>
-        </div>
+        <div class="modal-actions"><div></div><div class="modal-actions-right"><button class="btn btn-secondary" onclick="closeModal('modalEditarParcela')">Cancelar</button><button class="btn btn-primary" onclick="saveEditParcela()">Salvar</button></div></div>
+    </div>
+</div>
+
+<!-- MODAL ADICIONAR PENDENTE (LEMBRETE) -->
+<div class="modal-overlay" id="modalPendente">
+    <div class="modal">
+        <h2> Adicionar Lembrete (Precisa Incluir)</h2>
+        <div class="form-group"><label>Nome do Cliente</label><input type="text" id="pendenteCliente" placeholder="Ex: João Silva"></div>
+        <div class="form-group"><label>Número da Nota Fiscal</label><input type="text" id="pendenteNota" placeholder="Ex: NF-001234"></div>
+        <div class="form-group"><label>Valor Total (R$)</label><input type="number" id="pendenteValor" step="0.01" placeholder="Ex: 5000.00"></div>
+        <div class="form-group"><label>Comissionamento</label><input type="text" id="pendenteComissao" placeholder="Ex: 1%, 0.9%, Fixo R$ 50"></div>
+        <div class="modal-actions"><div></div><div class="modal-actions-right"><button class="btn btn-secondary" onclick="closeModal('modalPendente')">Cancelar</button><button class="btn btn-primary" onclick="savePendente()">Salvar Lembrete</button></div></div>
     </div>
 </div>
 
