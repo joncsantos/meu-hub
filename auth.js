@@ -1,11 +1,8 @@
-// --- SENHAS ---
-const ADMIN_PASSWORD = 'torsanijuliaqwert123';
-const ADRIANE_PASSWORD = 'hugojulia';
+var ADMIN_PASSWORD = 'torsanijuliaqwert123';
+var ADRIANE_PASSWORD = 'hugojulia';
 
-// --- LOGIN ---
 function checkLogin() {
-    const pass = document.getElementById('loginPassword').value;
-    
+    var pass = document.getElementById('loginPassword').value;
     if (pass === ADMIN_PASSWORD) {
         sessionStorage.setItem('userRole', 'admin');
         enterHub();
@@ -24,24 +21,15 @@ function enterHub() {
 }
 
 function renderHubCards() {
-    const role = sessionStorage.getItem('userRole');
-    const grid = document.getElementById('hubGrid');
+    var role = sessionStorage.getItem('userRole');
+    var grid = document.getElementById('hubGrid');
+    var html = '';
     
-    let html = `
-        <a href="financeiro.html" class="hub-card">
-            <div class="icon">💰</div>
-            <h3>Gestão Financeira</h3>
-        </a>
-    `;
+    html += '<a href="financeiro.html" class="hub-card"><div class="icon">💰</div><h3>Gestão Financeira</h3></a>';
+    html += '<a href="comissoes.html" class="hub-card"><div class="icon">💼</div><h3>Comissões</h3></a>';
     
-    // Adriane só vê Gestão Financeira
     if (role === 'admin') {
-        html += `
-            <a href="comissoes.html" class="hub-card">
-                <div class="icon">💼</div>
-                <h3>Comissões</h3>
-            </a>
-        `;
+        html += '<a href="zaf.html" class="hub-card"><div class="icon">🎯</div><h3>Técnica ZAF</h3></a>';
     }
     
     grid.innerHTML = html;
@@ -54,10 +42,7 @@ function logout() {
     document.getElementById('loginPassword').value = '';
 }
 
-// --- VERIFICAÇÃO DE SESSÃO AO CARREGAR ---
-window.addEventListener('DOMContentLoaded', () => {
-    const role = sessionStorage.getItem('userRole');
-    if (role) {
-        enterHub();
-    }
+window.addEventListener('DOMContentLoaded', function() {
+    var role = sessionStorage.getItem('userRole');
+    if (role) enterHub();
 });
