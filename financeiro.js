@@ -71,8 +71,6 @@ async function loadFromSupabase() {
     } catch (error) { console.error('Erro ao carregar:', error); }
 }
 
-function saveToStorage() { /* Mantido para compatibilidade, mas usamos Supabase */ }
-
 // --- HISTÓRICO ---
 async function addToHistory(action, details) {
     if (currentUserRole !== 'admin') return;
@@ -89,20 +87,6 @@ function renderHistory() {
 // --- NAVEGAÇÃO DE MESES/ANOS ---
 function renderMonthTabs() {
     var container = document.getElementById('monthTabs');
-    // Mostra 12 meses a partir do ano atual ou selecionado
-    var html = '';
-    for (var i = 0; i < 12; i++) {
-        var mIndex = (state.currentMonth + i) % 12; // Ajuste simples para visualização
-        // Para simplificar a UI, vamos mostrar os 12 meses do ano atual de state.currentYear
-        // Mas para navegar entre anos, precisamos de uma lógica de ano/mês combinada.
-        // Vamos manter simples: 12 meses do ano atual.
-    }
-    // Reimplementação simples: Mostra todos os 12 meses, e temos botões de ano? 
-    // O usuário pediu "considerar virada de ano". Vamos fazer um seletor de Ano + Mês.
-    
-    // Abordagem: Mostrar meses do ano atual. Se quiser 2027, precisa de um seletor de ano.
-    // Para manter o design limpo, vou colocar um seletor de ano no topo.
-    
     container.innerHTML = '<div style="display:flex; gap:1rem; align-items:center; width:100%; overflow-x:auto;">' + 
         '<button class="btn btn-sm btn-secondary" onclick="mudarAno(-1)">◀ Ano</button>' + 
         '<strong style="min-width:60px; text-align:center;">' + state.currentYear + '</strong>' + 
@@ -144,7 +128,7 @@ function renderTimeline() {
     // Calcular saldo até o início do mês
     var saldo = 0;
     state.transactions.forEach(t => {
-        var tDate = new Date(t.date + 'T00:00:00'); // Fix timezone
+        var tDate = new Date(t.date + 'T00:00:00');
         if (tDate.getFullYear() < year || (tDate.getFullYear() === year && tDate.getMonth() < month)) {
             if (t.type === 'entrada') saldo += t.amount;
             else saldo -= t.amount;
@@ -156,10 +140,9 @@ function renderTimeline() {
     var totalSaidasFixas = monthTransactions.filter(t => t.type === 'saida').reduce((a, b) => a + b.amount, 0);
     var totalDiarioMes = monthTransactions.filter(t => t.type === 'diario').reduce((a, b) => a + b.amount, 0);
 
-    // NOVA LÓGICA: Saldo Atual (até hoje)
+    // Saldo Atual (até hoje)
     var saldoAteHoje = saldo;
     if (isCurrentMonth) {
-        // Soma transações até hoje
         monthTransactions.forEach(t => {
             var tDay = parseInt(t.date.split('-')[2]);
             if (tDay <= diaAtual) {
@@ -168,21 +151,20 @@ function renderTimeline() {
             }
         });
     } else if (year < today.getFullYear() || (year === today.getFullYear() && month < today.getMonth())) {
-        // Mês passado: saldo até o fim do mês
         saldoAteHoje = saldo + totalEntradas - totalSaidasFixas - totalDiarioMes;
     }
 
     document.getElementById('sumSaldoAtual').textContent = formatMoney(saldoAteHoje);
     document.getElementById('saldoSubtitulo').textContent = isCurrentMonth ? `Calculado até dia ${diaAtual}` : (year < today.getFullYear() ? 'Mês encerrado' : 'Projeção futura');
 
-    // NOVA LÓGICA: Previsão Diário
+    // Previsão Diário
     var diasRestantes = 0;
     if (isCurrentMonth) {
         diasRestantes = daysInMonth - diaAtual + 1;
     } else if (year > today.getFullYear() || (year === today.getFullYear() && month > today.getMonth())) {
-        diasRestantes = daysInMonth; // Futuro
+        diasRestantes = daysInMonth;
     } else {
-        diasRestantes = 0; // Passado
+        diasRestantes = 0;
     }
     
     var previsaoDiario = 0;
@@ -244,7 +226,7 @@ function openDayTransModal(dateStr, type) {
             <div><strong>${t.title}</strong><br><small>${t.category} - ${formatMoney(t.amount)}</small></div>
             <div style="display:flex; gap:0.5rem;">
                 <button class="btn btn-warning btn-sm" onclick="editTransaction(${t.id})">✏️</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteTransaction(${t.id})">🗑️</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteTransaction(${t.id})">️</button>
             </div>
         </li>
     `).join('');
@@ -285,7 +267,7 @@ function renderCaixinhas(performance, year, month) {
     grid.innerHTML = state.caixinhas.map(c => {
         var allocatedValue = allocations[c.id] || 0;
         var canAllocate = isAdmin && performance > 0 && allocatedValue > 0;
-        return `<div class="caixinha-card priority-${c.priority}"><span class="badge">${priorityNames[c.priority]}</span><h4>${c.title}</h4><p class="saldo">${formatMoney(c.saldo)}</p><div style="display:flex; gap:0.5rem; flex-wrap:wrap;">${canAllocate ? `<button class="btn btn-primary btn-sm" onclick="allocateCaixinha(${c.id}, ${allocatedValue})">Alocar ${formatMoney(allocatedValue)}</button>` : ''}${isAdmin ? `<button class="btn btn-secondary btn-sm" onclick="editCaixinha(${c.id})">✏️</button>` : ''}</div></div>`;
+        return `<div class="caixinha-card priority-${c.priority}"><span class="badge">${priorityNames[c.priority]}</span><h4>${c.title}</h4><p class="saldo">${formatMoney(c.saldo)}</p><div style="display:flex; gap:0.5rem; flex-wrap:wrap;">${canAllocate ? `<button class="btn btn-primary btn-sm" onclick="allocateCaixinha(${c.id}, ${allocatedValue})">Alocar ${formatMoney(allocatedValue)}</button>` : ''}${isAdmin ? `<button class="btn btn-secondary btn-sm" onclick="editCaixinha(${c.id})">️</button>` : ''}</div></div>`;
     }).join('');
 }
 
@@ -351,6 +333,42 @@ function toggleEndDate() {
     else document.getElementById('groupEndDate').classList.add('hidden');
 }
 
+function generateRecurrenceDates(startDate, recurrence, endDate) {
+    var dates = [];
+    var startParts = startDate.split('-');
+    var current = new Date(parseInt(startParts[0]), parseInt(startParts[1]) - 1, parseInt(startParts[2]));
+
+    var end;
+    if (endDate && endDate !== "") {
+        var endParts = endDate.split('-');
+        end = new Date(parseInt(endParts[0]), parseInt(endParts[1]) - 1, parseInt(endParts[2]));
+    } else {
+        end = new Date(parseInt(startParts[0]) + 1, parseInt(startParts[1]) - 1, parseInt(startParts[2]));
+    }
+
+    var maxIterations = 500;
+    var iterations = 0;
+
+    while (current <= end && iterations < maxIterations) {
+        var y = current.getFullYear();
+        var m = String(current.getMonth() + 1).padStart(2, '0');
+        var d = String(current.getDate()).padStart(2, '0');
+        dates.push(`${y}-${m}-${d}`);
+
+        if (recurrence === 'diaria') {
+            current.setDate(current.getDate() + 1);
+        } else if (recurrence === 'quinzenal') {
+            current.setDate(current.getDate() + 15);
+        } else if (recurrence === 'mensal') {
+            current.setMonth(current.getMonth() + 1);
+        } else {
+            break;
+        }
+        iterations++;
+    }
+    return dates;
+}
+
 async function saveTransaction() {
     if (currentUserRole !== 'admin') return;
     var editId = document.getElementById('transEditId').value;
@@ -365,32 +383,41 @@ async function saveTransaction() {
     if (!startDate || !title || isNaN(amount)) return alert('Preencha os campos!');
 
     if (editId) {
-        await supabaseClient.from('transacoes').update({ tipo: type, data: startDate, titulo: title, categoria: category, valor: amount, recorrencia: recurrence }).eq('id', parseFloat(editId));
+        var { error } = await supabaseClient.from('transacoes').update({
+            tipo: type, data: startDate, titulo: title, categoria: category, valor: amount, recorrencia: recurrence
+        }).eq('id', parseFloat(editId));
+
+        if (error) { alert('Erro ao editar: ' + error.message); return; }
         await addToHistory('Editado', `${title} - ${formatMoney(amount)}`);
     } else {
         var dates = generateRecurrenceDates(startDate, recurrence, endDate);
-        var newTrans = dates.map(d => ({ tipo: type, data: d, titulo: title, categoria: category, valor: amount, recorrencia: recurrence }));
-        await supabaseClient.from('transacoes').insert(newTrans);
-        await addToHistory('Adicionado', `${title} (${dates.length}x)`);
-    }
-    closeModal('modalTransaction'); clearForm('modalTransaction');
-    await loadFromSupabase(); renderTimeline();
-}
+        console.log("Datas geradas para recorrência:", dates);
 
-function generateRecurrenceDates(startDate, recurrence, endDate) {
-    var dates = [];
-    var current = new Date(startDate + 'T00:00:00');
-    // Se não tiver end date e for recorrência, limita a 12 meses ou 1 ano para não travar
-    var end = endDate ? new Date(endDate + 'T00:00:00') : new Date(current.getFullYear() + 1, current.getMonth(), current.getDate());
-    
-    while (current <= end) {
-        dates.push(current.toISOString().split('T')[0]);
-        if (recurrence === 'diaria') current.setDate(current.getDate() + 1);
-        else if (recurrence === 'quinzenal') current.setDate(current.getDate() + 15);
-        else if (recurrence === 'mensal') current.setMonth(current.getMonth() + 1);
-        else break; // nenhuma
+        var newTrans = dates.map(d => ({
+            tipo: type,
+            data: d,
+            titulo: title,
+            categoria: category,
+            valor: amount,
+            recorrencia: recurrence
+        }));
+
+        var { data, error } = await supabaseClient.from('transacoes').insert(newTrans);
+
+        if (error) {
+            console.error("Erro ao inserir recorrência:", error);
+            alert("Erro ao salvar recorrência: " + error.message);
+            return;
+        }
+
+        await addToHistory('Adicionado', `${title} (${dates.length} parcelas geradas)`);
     }
-    return dates;
+
+    closeModal('modalTransaction');
+    clearForm('modalTransaction');
+    document.getElementById('groupEndDate').classList.add('hidden');
+    await loadFromSupabase();
+    renderTimeline();
 }
 
 function editTransaction(id) {
@@ -445,7 +472,7 @@ function renderMetaCard(m) {
             </div>
         </div>
         <div class="meta-title">${m.titulo}</div>
-        <div class="meta-reward"> Recompensa: ${m.recompensa || 'Não definida'}</div>
+        <div class="meta-reward">🎁 Recompensa: ${m.recompensa || 'Não definida'}</div>
         <div class="progress-container">
             <div class="progress-bar" style="width: ${percent}%; background-color: ${color};"></div>
             <div class="progress-text">${percent.toFixed(1)}%</div>
