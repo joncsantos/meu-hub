@@ -4,25 +4,23 @@ var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 var supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // --- ESTADO ---
-let state = {
+var state = {
     transactions: [],
     caixinhas: [],
+    metas: [],
     categories: ['Alimentação', 'Moradia', 'Transporte', 'Lazer', 'Saúde', 'Caixinhas'],
     history: [],
     currentMonth: new Date().getMonth(),
     currentYear: new Date().getFullYear()
 };
-const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-let chartInstance = null;
-let currentUserRole = null;
+var months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+var chartInstance = null;
+var currentUserRole = null;
 
-// --- VERIFICAÇÃO DE AUTENTICAÇÃO ---
+// --- INICIALIZAÇÃO ---
 window.addEventListener('DOMContentLoaded', async () => {
-    const role = sessionStorage.getItem('userRole');
-    if (!role) {
-        window.location.href = 'index.html';
-        return;
-    }
+    var role = sessionStorage.getItem('userRole');
+    if (!role) { window.location.href = 'index.html'; return; }
     currentUserRole = role;
     applyPermissions();
     await initFinanceApp();
@@ -36,93 +34,92 @@ function applyPermissions() {
     });
 }
 
-// --- ABAS ---
 function switchTab(tabId, element) {
     document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.app-tab').forEach(t => t.classList.remove('active'));
     document.getElementById(tabId).classList.add('active');
     element.classList.add('active');
-    
-    if (tabId === 'tab-performance') {
-        renderMonthTabsPerformance();
-        renderChart(getTransactionsForMonth(state.currentYear, state.currentMonth));
-    } else if (tabId === 'tab-history') {
-        renderHistory();
-    }
+    if (tabId === 'tab-performance') { renderMonthTabsPerformance(); renderChart(getTransactionsForMonth(state.currentYear, state.currentMonth)); }
+    else if (tabId === 'tab-history') renderHistory();
+    else if (tabId === 'tab-metas') renderMetas();
 }
 
-// --- INICIALIZAÇÃO ---
 async function initFinanceApp() {
     await loadFromSupabase();
     renderMonthTabs();
     renderTimeline();
     updateCategorySelect();
     document.getElementById('transDate').valueAsDate = new Date();
+    document.getElementById('contribData').valueAsDate = new Date();
 }
 
 async function loadFromSupabase() {
     try {
-        const { data: transData } = await supabaseClient.from('transacoes').select('*').order('criado_em', { ascending: false });
-        const { data: caixData } = await supabaseClient.from('caixinhas').select('*').order('criado_em', { ascending: false });
-        const { data: catData } = await supabaseClient.from('categorias').select('nome');
-        const { data: histData } = await supabaseClient.from('historico').select('*').order('criado_em', { ascending: false });
+        var [transRes, caixRes, catRes, histRes, metasRes] = await Promise.all([
+            supabaseClient.from('transacoes').select('*'),
+            supabaseClient.from('caixinhas').select('*'),
+            supabaseClient.from('categorias').select('nome'),
+            supabaseClient.from('historico').select('*').order('criado_em', { ascending: false }),
+            supabaseClient.from('metas').select('*').order('criado_em', { ascending: false })
+        ]);
 
-        state.transactions = transData ? transData.map(t => ({
-            id: t.id, type: t.tipo, date: t.data, title: t.titulo, category: t.categoria, amount: parseFloat(t.valor), recurrence: t.recorrencia
-        })) : [];
-        
-        state.caixinhas = caixData ? caixData.map(c => ({
-            id: c.id, title: c.titulo, priority: c.prioridade, ranking: c.ranking, saldo: parseFloat(c.saldo)
-        })) : [];
-        
-        state.categories = catData && catData.length > 0 ? catData.map(c => c.nome) : ['Alimentação', 'Moradia', 'Transporte', 'Lazer', 'Saúde', 'Caixinhas'];
-        
-        state.history = histData ? histData.map(h => ({
-            timestamp: new Date(h.criado_em).toLocaleString('pt-BR'), action: h.acao, details: h.detalhes
-        })) : [];
-
-    } catch (error) {
-        console.error('Erro ao carregar dados do Supabase:', error);
-    }
+        state.transactions = transRes.data ? transRes.data.map(t => ({ id: t.id, type: t.tipo, date: t.data, title: t.titulo, category: t.categoria, amount: parseFloat(t.valor), recurrence: t.recorrencia })) : [];
+        state.caixinhas = caixRes.data ? caixRes.data.map(c => ({ id: c.id, title: c.titulo, priority: c.prioridade, ranking: c.ranking, saldo: parseFloat(c.saldo) })) : [];
+        state.categories = catRes.data && catRes.data.length > 0 ? catRes.data.map(c => c.nome) : ['Alimentação', 'Moradia', 'Transporte', 'Lazer', 'Saúde', 'Caixinhas'];
+        state.history = histRes.data ? histRes.data.map(h => ({ timestamp: new Date(h.criado_em).toLocaleString('pt-BR'), action: h.acao, details: h.detalhes })) : [];
+        state.metas = metasRes.data || [];
+    } catch (error) { console.error('Erro ao carregar:', error); }
 }
+
+function saveToStorage() { /* Mantido para compatibilidade, mas usamos Supabase */ }
 
 // --- HISTÓRICO ---
 async function addToHistory(action, details) {
     if (currentUserRole !== 'admin') return;
-    const now = new Date().toISOString();
     state.history.unshift({ timestamp: new Date().toLocaleString('pt-BR'), action, details });
-    if (state.history.length > 100) state.history.pop();
-    await supabaseClient.from('historico').insert([{ acao: action, detalhes: details, criado_em: now }]);
+    await supabaseClient.from('historico').insert([{ acao: action, detalhes: details }]);
 }
 
 function renderHistory() {
-    const list = document.getElementById('historyList');
-    if (state.history.length === 0) {
-        list.innerHTML = '<p style="color:var(--text-muted); text-align:center; padding:2rem;">Nenhuma alteração registrada.</p>';
-        return;
-    }
-    list.innerHTML = state.history.map(h => `
-        <div class="history-item">
-            <div class="timestamp">${h.timestamp}</div>
-            <div class="action">${h.action}</div>
-            <div style="font-size:0.9rem; color:var(--text-muted); margin-top:0.3rem;">${h.details}</div>
-        </div>
-    `).join('');
+    var list = document.getElementById('historyList');
+    if (state.history.length === 0) { list.innerHTML = '<p style="text-align:center; padding:2rem; color:var(--text-muted);">Nenhum histórico.</p>'; return; }
+    list.innerHTML = state.history.map(h => `<div class="history-item"><div class="timestamp">${h.timestamp}</div><div class="action">${h.action}</div><div style="font-size:0.9rem; color:var(--text-muted);">${h.details}</div></div>`).join('');
 }
 
-// --- RENDERIZAÇÃO ---
+// --- NAVEGAÇÃO DE MESES/ANOS ---
 function renderMonthTabs() {
-    const container = document.getElementById('monthTabs');
-    container.innerHTML = months.map((m, i) => 
-        `<div class="month-tab ${i === state.currentMonth ? 'active' : ''}" onclick="changeMonth(${i})">${m}</div>`
-    ).join('');
+    var container = document.getElementById('monthTabs');
+    // Mostra 12 meses a partir do ano atual ou selecionado
+    var html = '';
+    for (var i = 0; i < 12; i++) {
+        var mIndex = (state.currentMonth + i) % 12; // Ajuste simples para visualização
+        // Para simplificar a UI, vamos mostrar os 12 meses do ano atual de state.currentYear
+        // Mas para navegar entre anos, precisamos de uma lógica de ano/mês combinada.
+        // Vamos manter simples: 12 meses do ano atual.
+    }
+    // Reimplementação simples: Mostra todos os 12 meses, e temos botões de ano? 
+    // O usuário pediu "considerar virada de ano". Vamos fazer um seletor de Ano + Mês.
+    
+    // Abordagem: Mostrar meses do ano atual. Se quiser 2027, precisa de um seletor de ano.
+    // Para manter o design limpo, vou colocar um seletor de ano no topo.
+    
+    container.innerHTML = '<div style="display:flex; gap:1rem; align-items:center; width:100%; overflow-x:auto;">' + 
+        '<button class="btn btn-sm btn-secondary" onclick="mudarAno(-1)">◀ Ano</button>' + 
+        '<strong style="min-width:60px; text-align:center;">' + state.currentYear + '</strong>' + 
+        '<button class="btn btn-sm btn-secondary" onclick="mudarAno(1)">Ano ▶</button>' + 
+        '<div style="display:flex; gap:0.5rem;">' +
+        months.map((m, i) => `<div class="month-tab ${i === state.currentMonth ? 'active' : ''}" onclick="changeMonth(${i})">${m.substring(0,3)}</div>`).join('') + 
+        '</div></div>';
 }
 
 function renderMonthTabsPerformance() {
-    const container = document.getElementById('monthTabsPerformance');
-    container.innerHTML = months.map((m, i) => 
-        `<div class="month-tab ${i === state.currentMonth ? 'active' : ''}" onclick="changeMonth(${i})">${m}</div>`
-    ).join('');
+    document.getElementById('monthTabsPerformance').innerHTML = months.map((m, i) => `<div class="month-tab ${i === state.currentMonth ? 'active' : ''}" onclick="changeMonth(${i})">${m}</div>`).join('');
+}
+
+function mudarAno(delta) {
+    state.currentYear += delta;
+    renderMonthTabs();
+    renderTimeline();
 }
 
 function changeMonth(index) {
@@ -132,62 +129,97 @@ function changeMonth(index) {
     renderTimeline();
 }
 
+// --- LÓGICA PRINCIPAL DA TIMELINE ---
 function renderTimeline() {
-    const year = state.currentYear;
-    const month = state.currentMonth;
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const tbody = document.getElementById('timelineBody');
+    var year = state.currentYear;
+    var month = state.currentMonth;
+    var daysInMonth = new Date(year, month + 1, 0).getDate();
+    var tbody = document.getElementById('timelineBody');
     tbody.innerHTML = '';
 
-    let saldo = 0;
+    var today = new Date();
+    var isCurrentMonth = (today.getFullYear() === year && today.getMonth() === month);
+    var diaAtual = today.getDate();
+
+    // Calcular saldo até o início do mês
+    var saldo = 0;
     state.transactions.forEach(t => {
-        const tDate = new Date(t.date);
+        var tDate = new Date(t.date + 'T00:00:00'); // Fix timezone
         if (tDate.getFullYear() < year || (tDate.getFullYear() === year && tDate.getMonth() < month)) {
             if (t.type === 'entrada') saldo += t.amount;
             else saldo -= t.amount;
         }
     });
 
-    const monthTransactions = getTransactionsForMonth(year, month);
-    
-    const totalEntradas = monthTransactions.filter(t => t.type === 'entrada').reduce((a, b) => a + b.amount, 0);
-    const totalSaidasFixas = monthTransactions.filter(t => t.type === 'saida').reduce((a, b) => a + b.amount, 0);
-    let previsaoDiario = (totalEntradas - totalSaidasFixas) / daysInMonth;
-    if (previsaoDiario < 0) previsaoDiario = 0;
+    var monthTransactions = getTransactionsForMonth(year, month);
+    var totalEntradas = monthTransactions.filter(t => t.type === 'entrada').reduce((a, b) => a + b.amount, 0);
+    var totalSaidasFixas = monthTransactions.filter(t => t.type === 'saida').reduce((a, b) => a + b.amount, 0);
+    var totalDiarioMes = monthTransactions.filter(t => t.type === 'diario').reduce((a, b) => a + b.amount, 0);
 
-    for (let day = 1; day <= daysInMonth; day++) {
-        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        const dayTrans = monthTransactions.filter(t => t.date === dateStr);
+    // NOVA LÓGICA: Saldo Atual (até hoje)
+    var saldoAteHoje = saldo;
+    if (isCurrentMonth) {
+        // Soma transações até hoje
+        monthTransactions.forEach(t => {
+            var tDay = parseInt(t.date.split('-')[2]);
+            if (tDay <= diaAtual) {
+                if (t.type === 'entrada') saldoAteHoje += t.amount;
+                else saldoAteHoje -= t.amount;
+            }
+        });
+    } else if (year < today.getFullYear() || (year === today.getFullYear() && month < today.getMonth())) {
+        // Mês passado: saldo até o fim do mês
+        saldoAteHoje = saldo + totalEntradas - totalSaidasFixas - totalDiarioMes;
+    }
+
+    document.getElementById('sumSaldoAtual').textContent = formatMoney(saldoAteHoje);
+    document.getElementById('saldoSubtitulo').textContent = isCurrentMonth ? `Calculado até dia ${diaAtual}` : (year < today.getFullYear() ? 'Mês encerrado' : 'Projeção futura');
+
+    // NOVA LÓGICA: Previsão Diário
+    var diasRestantes = 0;
+    if (isCurrentMonth) {
+        diasRestantes = daysInMonth - diaAtual + 1;
+    } else if (year > today.getFullYear() || (year === today.getFullYear() && month > today.getMonth())) {
+        diasRestantes = daysInMonth; // Futuro
+    } else {
+        diasRestantes = 0; // Passado
+    }
+    
+    var previsaoDiario = 0;
+    if (diasRestantes > 0 && saldoAteHoje > 0) {
+        previsaoDiario = saldoAteHoje / diasRestantes;
+    }
+
+    for (var day = 1; day <= daysInMonth; day++) {
+        var dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        var dayTrans = monthTransactions.filter(t => t.date === dateStr);
         
-        const entradaTrans = dayTrans.filter(t => t.type === 'entrada');
-        const saidaTrans = dayTrans.filter(t => t.type === 'saida');
-        const diarioTrans = dayTrans.filter(t => t.type === 'diario');
-        
-        const entrada = entradaTrans.reduce((a, b) => a + b.amount, 0);
-        const saida = saidaTrans.reduce((a, b) => a + b.amount, 0);
-        const diario = diarioTrans.reduce((a, b) => a + b.amount, 0);
+        var entrada = dayTrans.filter(t => t.type === 'entrada').reduce((a, b) => a + b.amount, 0);
+        var saida = dayTrans.filter(t => t.type === 'saida').reduce((a, b) => a + b.amount, 0);
+        var diario = dayTrans.filter(t => t.type === 'diario').reduce((a, b) => a + b.amount, 0);
         
         saldo = saldo + entrada - saida - diario;
 
-        const tr = document.createElement('tr');
+        var tr = document.createElement('tr');
+        if (isCurrentMonth && day === diaAtual) tr.className = 'linha-hoje';
+        
         tr.innerHTML = `
-            <td>${day}</td>
-            ${renderTransCell('entrada', dateStr, entrada, entradaTrans)}
-            ${renderTransCell('saida', dateStr, saida, saidaTrans)}
-            ${renderTransCell('diario', dateStr, diario, diarioTrans)}
+            <td>${day} ${isCurrentMonth && day === diaAtual ? '(Hoje)' : ''}</td>
+            ${renderTransCell('entrada', dateStr, entrada, dayTrans.filter(t => t.type === 'entrada'))}
+            ${renderTransCell('saida', dateStr, saida, dayTrans.filter(t => t.type === 'saida'))}
+            ${renderTransCell('diario', dateStr, diario, dayTrans.filter(t => t.type === 'diario'))}
             <td class="${saldo < 0 ? 'text-danger' : 'text-success'}">${formatMoney(saldo)}</td>
             <td class="bg-gray">${formatMoney(previsaoDiario)}</td>
         `;
         tbody.appendChild(tr);
     }
 
-    const totalDiario = monthTransactions.filter(t => t.type === 'diario').reduce((a, b) => a + b.amount, 0);
-    const saidaTotal = totalSaidasFixas + totalDiario;
-    const performance = totalEntradas - saidaTotal;
+    var saidaTotal = totalSaidasFixas + totalDiarioMes;
+    var performance = totalEntradas - saidaTotal;
 
     document.getElementById('sumEntrada').textContent = formatMoney(totalEntradas);
     document.getElementById('sumSaida').textContent = formatMoney(totalSaidasFixas);
-    document.getElementById('sumDiario').textContent = formatMoney(totalDiario);
+    document.getElementById('sumDiario').textContent = formatMoney(totalDiarioMes);
     document.getElementById('sumSaidaTotal').textContent = formatMoney(saidaTotal);
     document.getElementById('sumPerformance').textContent = formatMoney(performance);
 
@@ -195,405 +227,341 @@ function renderTimeline() {
 }
 
 function renderTransCell(type, dateStr, total, transList) {
-    const titles = transList.map(t => t.title).join(' + ');
-    const tooltip = titles || 'Sem transações';
-    const isAdmin = currentUserRole === 'admin';
-    const editBtn = isAdmin && transList.length > 0 ? `<button class="btn-icon" onclick="openDayTransModal('${dateStr}', '${type}')" title="Editar transações">✏️</button>` : '';
-    
-    return `
-        <td>
-            <div class="trans-cell">
-                <span class="trans-value ${total > 0 ? (type === 'entrada' ? 'text-success' : 'text-danger') : ''}" title="${tooltip}">${formatMoney(total)}</span>
-                ${editBtn}
-            </div>
-        </td>
-    `;
+    var titles = transList.map(t => t.title).join(' + ');
+    var isAdmin = currentUserRole === 'admin';
+    var editBtn = isAdmin && transList.length > 0 ? `<button class="btn-icon" onclick="openDayTransModal('${dateStr}', '${type}')">✏️</button>` : '';
+    var colorClass = total > 0 ? (type === 'entrada' ? 'text-success' : 'text-danger') : '';
+    return `<td><div class="trans-cell"><span class="trans-value ${colorClass}" title="${titles}">${formatMoney(total)}</span>${editBtn}</div></td>`;
 }
 
 function openDayTransModal(dateStr, type) {
-    const transList = state.transactions.filter(t => t.date === dateStr && t.type === type);
-    const typeNames = { entrada: 'Entrada', saida: 'Saída', diario: 'Diário' };
-    
+    var transList = state.transactions.filter(t => t.date === dateStr && t.type === type);
+    var typeNames = { entrada: 'Entrada', saida: 'Saída', diario: 'Diário' };
     document.getElementById('dayTransTitle').textContent = `${typeNames[type]} em ${dateStr.split('-').reverse().join('/')}`;
-    const listEl = document.getElementById('dayTransList');
-    
-    if (transList.length === 0) {
-        listEl.innerHTML = '<li style="text-align:center; color:var(--text-muted);">Nenhuma transação.</li>';
-    } else {
-        listEl.innerHTML = transList.map(t => `
-            <li class="day-trans-item">
-                <div>
-                    <strong>${t.title}</strong><br>
-                    <small style="color:var(--text-muted)">${t.category} - ${formatMoney(t.amount)}</small>
-                </div>
-                <div style="display:flex; gap:0.5rem;">
-                    <button class="btn btn-warning btn-sm" onclick="editTransaction(${t.id})">✏️</button>
-                    <button class="btn btn-danger btn-sm" onclick="deleteTransaction(${t.id})">️</button>
-                </div>
-            </li>
-        `).join('');
-    }
+    var listEl = document.getElementById('dayTransList');
+    listEl.innerHTML = transList.length === 0 ? '<li>Nenhuma transação.</li>' : transList.map(t => `
+        <li class="day-trans-item">
+            <div><strong>${t.title}</strong><br><small>${t.category} - ${formatMoney(t.amount)}</small></div>
+            <div style="display:flex; gap:0.5rem;">
+                <button class="btn btn-warning btn-sm" onclick="editTransaction(${t.id})">✏️</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteTransaction(${t.id})">🗑️</button>
+            </div>
+        </li>
+    `).join('');
     openModal('modalDayTrans');
 }
 
 function getTransactionsForMonth(year, month) {
-    const start = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-    const end = `${year}-${String(month + 1).padStart(2, '0')}-31`;
+    var start = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+    var end = `${year}-${String(month + 1).padStart(2, '0')}-31`;
     return state.transactions.filter(t => t.date >= start && t.date <= end);
 }
 
 // --- GRÁFICO ---
 function renderChart(transactions) {
-    const ctx = document.getElementById('financeChart').getContext('2d');
-    const categoriesData = {};
+    var ctx = document.getElementById('financeChart').getContext('2d');
+    var categoriesData = {};
     transactions.forEach(t => {
         if (!categoriesData[t.category]) categoriesData[t.category] = { entrada: 0, saida: 0 };
         if (t.type === 'entrada') categoriesData[t.category].entrada += t.amount;
         else categoriesData[t.category].saida += t.amount;
     });
-    const labels = Object.keys(categoriesData);
-    const dataEntrada = labels.map(l => categoriesData[l].entrada);
-    const dataSaida = labels.map(l => categoriesData[l].saida);
-
+    var labels = Object.keys(categoriesData);
     if (chartInstance) chartInstance.destroy();
     chartInstance = new Chart(ctx, {
         type: 'bar',
-        data: {
-            labels: labels.length ? labels : ['Sem dados'],
-            datasets: [
-                { label: 'Entradas', data: dataEntrada, backgroundColor: '#10b981', borderRadius: 4 },
-                { label: 'Saídas', data: dataSaida, backgroundColor: '#ef4444', borderRadius: 4 }
-            ]
-        },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true } } }
+        data: { labels: labels.length ? labels : ['Sem dados'], datasets: [{ label: 'Entradas', data: labels.map(l => categoriesData[l].entrada), backgroundColor: '#10b981' }, { label: 'Saídas', data: labels.map(l => categoriesData[l].saida), backgroundColor: '#ef4444' }] },
+        options: { responsive: true, maintainAspectRatio: false }
     });
 }
 
 // --- CAIXINHAS ---
 function renderCaixinhas(performance, year, month) {
-    const grid = document.getElementById('caixinhasGrid');
-    if (state.caixinhas.length === 0) {
-        grid.innerHTML = '<p style="color:var(--text-muted)">Nenhuma caixinha criada.</p>';
-        return;
-    }
-    const allocations = calculateAllocations(performance);
-    const priorityNames = { muito: 'Muito Importante', importante: 'Importante', pouco: 'Pouco Importante' };
-    const isAdmin = currentUserRole === 'admin';
-
+    var grid = document.getElementById('caixinhasGrid');
+    if (state.caixinhas.length === 0) { grid.innerHTML = '<p style="color:var(--text-muted)">Nenhuma caixinha.</p>'; return; }
+    var allocations = calculateAllocations(performance);
+    var priorityNames = { muito: 'Muito Importante (60%)', importante: 'Importante (30%)', pouco: 'Pouco Importante (10%)' };
+    var isAdmin = currentUserRole === 'admin';
     grid.innerHTML = state.caixinhas.map(c => {
-        const allocatedValue = allocations[c.id] || 0;
-        const canAllocate = isAdmin && performance > 0 && allocatedValue > 0;
-        return `
-            <div class="caixinha-card priority-${c.priority}">
-                <div>
-                    <span class="badge">${priorityNames[c.priority]} (Ranking ${c.ranking})</span>
-                    <h4>${c.title}</h4>
-                    <p style="font-size:0.85rem; color:var(--text-muted)">Saldo Acumulado:</p>
-                    <p class="saldo">${formatMoney(c.saldo)}</p>
-                </div>
-                <div style="display:flex; gap:0.5rem; margin-top:0.5rem; flex-wrap:wrap;">
-                    ${canAllocate ? `<button class="btn btn-primary btn-sm" onclick="allocateCaixinha(${c.id}, ${allocatedValue})">Alocar ${formatMoney(allocatedValue)}</button>` : ''}
-                    ${isAdmin ? `<button class="btn btn-secondary btn-sm" onclick="editCaixinha(${c.id})">✏️ Editar</button>` : ''}
-                </div>
-            </div>
-        `;
+        var allocatedValue = allocations[c.id] || 0;
+        var canAllocate = isAdmin && performance > 0 && allocatedValue > 0;
+        return `<div class="caixinha-card priority-${c.priority}"><span class="badge">${priorityNames[c.priority]}</span><h4>${c.title}</h4><p class="saldo">${formatMoney(c.saldo)}</p><div style="display:flex; gap:0.5rem; flex-wrap:wrap;">${canAllocate ? `<button class="btn btn-primary btn-sm" onclick="allocateCaixinha(${c.id}, ${allocatedValue})">Alocar ${formatMoney(allocatedValue)}</button>` : ''}${isAdmin ? `<button class="btn btn-secondary btn-sm" onclick="editCaixinha(${c.id})">✏️</button>` : ''}</div></div>`;
     }).join('');
 }
 
 function calculateAllocations(performance) {
     if (performance <= 0) return {};
-    const priorities = { muito: 0.60, importante: 0.30, pouco: 0.10 };
-    const allocations = {};
-    for (const [priority, percent] of Object.entries(priorities)) {
-        const group = state.caixinhas.filter(c => c.priority === priority).sort((a, b) => a.ranking - b.ranking);
+    var priorities = { muito: 0.60, importante: 0.30, pouco: 0.10 };
+    var allocations = {};
+    for (var [priority, percent] of Object.entries(priorities)) {
+        var group = state.caixinhas.filter(c => c.priority === priority).sort((a, b) => a.ranking - b.ranking);
         if (group.length === 0) continue;
-        const totalPool = performance * percent;
-        const totalWeight = group.reduce((sum, c) => sum + ((group.length + 1) - c.ranking), 0);
-        group.forEach(c => {
-            const weight = (group.length + 1) - c.ranking;
-            allocations[c.id] = totalPool * (weight / totalWeight);
-        });
+        var totalPool = performance * percent;
+        var totalWeight = group.reduce((sum, c) => sum + ((group.length + 1) - c.ranking), 0);
+        group.forEach(c => { allocations[c.id] = totalPool * (((group.length + 1) - c.ranking) / totalWeight); });
     }
     return allocations;
 }
 
 async function allocateCaixinha(id, value) {
     if (currentUserRole !== 'admin') return;
-    if (!confirm(`Deseja alocar ${formatMoney(value)} na caixinha? O valor será adicionado como saída no dia de hoje.`)) return;
-    
-    const caixinha = state.caixinhas.find(c => c.id === id);
-    const today = new Date();
-    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    
-    const { data: newTrans } = await supabaseClient.from('transacoes').insert([{
-        tipo: 'saida', data: dateStr, titulo: `Reserva: ${caixinha.title}`, 
-        categoria: 'Caixinhas', valor: value, recorrencia: 'nenhuma'
-    }]).select().single();
-
+    if (!confirm(`Alocar ${formatMoney(value)}?`)) return;
+    var caixinha = state.caixinhas.find(c => c.id === id);
+    var today = new Date();
+    var dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    await supabaseClient.from('transacoes').insert([{ tipo: 'saida', data: dateStr, titulo: `Reserva: ${caixinha.title}`, categoria: 'Caixinhas', valor: value, recorrencia: 'nenhuma' }]);
     await supabaseClient.from('caixinhas').update({ saldo: caixinha.saldo + value }).eq('id', id);
-
-    if (newTrans) {
-        state.transactions.push({ id: newTrans.id, type: 'saida', date: dateStr, title: `Reserva: ${caixinha.title}`, category: 'Caixinhas', amount: value, recurrence: 'nenhuma' });
-    }
     caixinha.saldo += value;
-    
-    await addToHistory('Alocação de Caixinha', `Adicionado ${formatMoney(value)} em "${caixinha.title}" no dia ${dateStr}`);
-    renderTimeline();
-    alert(`Valor alocado com sucesso no dia ${today.getDate()}!`);
+    await addToHistory('Alocação', `Alocado ${formatMoney(value)} em ${caixinha.title}`);
+    await loadFromSupabase(); renderTimeline();
 }
 
 async function saveCaixinha() {
     if (currentUserRole !== 'admin') return;
-    const editId = document.getElementById('caixEditId').value;
-    const title = document.getElementById('caixTitle').value;
-    const priority = document.getElementById('caixPriority').value;
-    const ranking = parseInt(document.getElementById('caixRanking').value) || 1;
-    const saldo = parseFloat(document.getElementById('caixSaldo').value) || 0;
-    
-    if (!title) return alert('Digite um título!');
-
+    var editId = document.getElementById('caixEditId').value;
+    var title = document.getElementById('caixTitle').value;
+    var priority = document.getElementById('caixPriority').value;
+    var ranking = parseInt(document.getElementById('caixRanking').value) || 1;
+    var saldo = parseFloat(document.getElementById('caixSaldo').value) || 0;
+    if (!title) return alert('Título obrigatório!');
     if (editId) {
-        const caixinha = state.caixinhas.find(c => c.id === parseFloat(editId));
-        const oldSaldo = caixinha.saldo;
         await supabaseClient.from('caixinhas').update({ titulo: title, prioridade: priority, ranking: ranking, saldo: saldo }).eq('id', parseFloat(editId));
-        caixinha.title = title; caixinha.priority = priority; caixinha.ranking = ranking; caixinha.saldo = saldo;
-        await addToHistory('Caixinha Editada', `"${caixinha.title}" - Saldo alterado de ${formatMoney(oldSaldo)} para ${formatMoney(saldo)}`);
     } else {
-        const { data: newCaix } = await supabaseClient.from('caixinhas').insert([{ titulo: title, prioridade: priority, ranking: ranking, saldo: 0 }]).select().single();
-        if (newCaix) {
-            state.caixinhas.push({ id: newCaix.id, title, priority, ranking, saldo: 0 });
-            await addToHistory('Caixinha Criada', `Nova caixinha "${title}" (Prioridade: ${priority}, Ranking: ${ranking})`);
-        }
+        await supabaseClient.from('caixinhas').insert([{ titulo: title, prioridade: priority, ranking: ranking, saldo: 0 }]);
     }
-    closeModal('modalCaixinha');
-    clearForm('modalCaixinha');
-    renderTimeline();
+    closeModal('modalCaixinha'); clearForm('modalCaixinha');
+    await loadFromSupabase(); renderTimeline();
 }
 
 function editCaixinha(id) {
-    if (currentUserRole !== 'admin') return;
-    const caixinha = state.caixinhas.find(c => c.id === id);
-    document.getElementById('caixEditId').value = caixinha.id;
-    document.getElementById('caixTitle').value = caixinha.title;
-    document.getElementById('caixPriority').value = caixinha.priority;
-    document.getElementById('caixRanking').value = caixinha.ranking;
-    document.getElementById('caixSaldo').value = caixinha.saldo;
+    var c = state.caixinhas.find(x => x.id === id);
+    document.getElementById('caixEditId').value = c.id;
+    document.getElementById('caixTitle').value = c.title;
+    document.getElementById('caixPriority').value = c.priority;
+    document.getElementById('caixRanking').value = c.ranking;
+    document.getElementById('caixSaldo').value = c.saldo;
     document.getElementById('caixSaldoGroup').style.display = 'block';
-    document.getElementById('caixModalTitle').textContent = 'Editar Caixinha';
     openModal('modalCaixinha');
 }
 
 // --- TRANSAÇÕES ---
+function toggleEndDate() {
+    var rec = document.getElementById('transRecurrence').value;
+    if (rec !== 'nenhuma') document.getElementById('groupEndDate').classList.remove('hidden');
+    else document.getElementById('groupEndDate').classList.add('hidden');
+}
+
 async function saveTransaction() {
     if (currentUserRole !== 'admin') return;
-    const editId = document.getElementById('transEditId').value;
-    const type = document.getElementById('transType').value;
-    const date = document.getElementById('transDate').value;
-    const title = document.getElementById('transTitle').value;
-    const category = document.getElementById('transCategory').value;
-    const amount = parseFloat(document.getElementById('transAmount').value);
-    const recurrence = document.getElementById('transRecurrence').value;
+    var editId = document.getElementById('transEditId').value;
+    var type = document.getElementById('transType').value;
+    var startDate = document.getElementById('transDate').value;
+    var title = document.getElementById('transTitle').value;
+    var category = document.getElementById('transCategory').value;
+    var amount = parseFloat(document.getElementById('transAmount').value);
+    var recurrence = document.getElementById('transRecurrence').value;
+    var endDate = document.getElementById('transEndDate').value;
 
-    if (!date || !title || isNaN(amount)) return alert('Preencha todos os campos!');
+    if (!startDate || !title || isNaN(amount)) return alert('Preencha os campos!');
 
     if (editId) {
-        await supabaseClient.from('transacoes').update({ 
-            tipo: type, data: date, titulo: title, categoria: category, valor: amount, recorrencia: recurrence 
-        }).eq('id', parseFloat(editId));
-
-        const trans = state.transactions.find(t => t.id === parseFloat(editId));
-        if (trans) {
-            trans.type = type; trans.date = date; trans.title = title; trans.category = category; trans.amount = amount; trans.recurrence = recurrence;
-        }
-        await addToHistory('Transação Editada', `${title} - ${formatMoney(amount)} em ${date}`);
+        await supabaseClient.from('transacoes').update({ tipo: type, data: startDate, titulo: title, categoria: category, valor: amount, recorrencia: recurrence }).eq('id', parseFloat(editId));
+        await addToHistory('Editado', `${title} - ${formatMoney(amount)}`);
     } else {
-        const dates = generateRecurrenceDates(date, recurrence);
-        const newTrans = dates.map(d => ({ tipo: type, data: d, titulo: title, categoria: category, valor: amount, recorrencia: recurrence }));
-        const { data: inserted } = await supabaseClient.from('transacoes').insert(newTrans).select();
-        if (inserted) {
-            inserted.forEach(t => {
-                state.transactions.push({ id: t.id, type: t.tipo, date: t.data, title: t.titulo, category: t.categoria, amount: parseFloat(t.valor), recurrence: t.recorrencia });
-            });
-            await addToHistory('Transação Adicionada', `${title} - ${formatMoney(amount)} em ${date} (${recurrence})`);
-        }
+        var dates = generateRecurrenceDates(startDate, recurrence, endDate);
+        var newTrans = dates.map(d => ({ tipo: type, data: d, titulo: title, categoria: category, valor: amount, recorrencia: recurrence }));
+        await supabaseClient.from('transacoes').insert(newTrans);
+        await addToHistory('Adicionado', `${title} (${dates.length}x)`);
     }
-    renderTimeline();
-    closeModal('modalTransaction');
-    clearForm('modalTransaction');
+    closeModal('modalTransaction'); clearForm('modalTransaction');
+    await loadFromSupabase(); renderTimeline();
+}
+
+function generateRecurrenceDates(startDate, recurrence, endDate) {
+    var dates = [];
+    var current = new Date(startDate + 'T00:00:00');
+    // Se não tiver end date e for recorrência, limita a 12 meses ou 1 ano para não travar
+    var end = endDate ? new Date(endDate + 'T00:00:00') : new Date(current.getFullYear() + 1, current.getMonth(), current.getDate());
+    
+    while (current <= end) {
+        dates.push(current.toISOString().split('T')[0]);
+        if (recurrence === 'diaria') current.setDate(current.getDate() + 1);
+        else if (recurrence === 'quinzenal') current.setDate(current.getDate() + 15);
+        else if (recurrence === 'mensal') current.setMonth(current.getMonth() + 1);
+        else break; // nenhuma
+    }
+    return dates;
 }
 
 function editTransaction(id) {
-    if (currentUserRole !== 'admin') return;
-    const trans = state.transactions.find(t => t.id === id);
-    if (!trans) return;
+    var t = state.transactions.find(x => x.id === id);
+    if (!t) return;
     closeModal('modalDayTrans');
-    document.getElementById('transEditId').value = trans.id;
-    document.getElementById('transType').value = trans.type;
-    document.getElementById('transDate').value = trans.date;
-    document.getElementById('transTitle').value = trans.title;
-    document.getElementById('transCategory').value = trans.category;
-    document.getElementById('transAmount').value = trans.amount;
-    document.getElementById('transRecurrence').value = trans.recurrence;
+    document.getElementById('transEditId').value = t.id;
+    document.getElementById('transType').value = t.type;
+    document.getElementById('transDate').value = t.date;
+    document.getElementById('transTitle').value = t.title;
+    document.getElementById('transCategory').value = t.category;
+    document.getElementById('transAmount').value = t.amount;
+    document.getElementById('transRecurrence').value = t.recurrence || 'nenhuma';
+    toggleEndDate();
     document.getElementById('transModalTitle').textContent = 'Editar Transação';
     document.getElementById('btnDeleteTrans').classList.remove('hidden');
     openModal('modalTransaction');
 }
 
 async function confirmDeleteTransaction() {
-    if (currentUserRole !== 'admin') return;
-    const editId = document.getElementById('transEditId').value;
-    if (!editId) return;
-    if (confirm('⚠️ Tem certeza que deseja excluir esta transação? Esta ação não pode ser desfeita.')) {
-        await deleteTransaction(parseFloat(editId));
-    }
+    var id = document.getElementById('transEditId').value;
+    if (id && confirm('Excluir?')) await deleteTransaction(parseFloat(id));
 }
 
 async function deleteTransaction(id) {
-    if (currentUserRole !== 'admin') return;
-    const trans = state.transactions.find(t => t.id === id);
     await supabaseClient.from('transacoes').delete().eq('id', id);
-    state.transactions = state.transactions.filter(t => t.id !== id);
-    if (trans) await addToHistory('Transação Excluída', `${trans.title} - ${formatMoney(trans.amount)} em ${trans.date}`);
-    renderTimeline();
-    closeModal('modalTransaction');
-    closeModal('modalDayTrans');
-    clearForm('modalTransaction');
+    await loadFromSupabase(); renderTimeline();
+    closeModal('modalTransaction'); closeModal('modalDayTrans'); clearForm('modalTransaction');
 }
 
-function generateRecurrenceDates(startDate, recurrence) {
-    const dates = [startDate];
-    if (recurrence === 'nenhuma') return dates;
-    const [y, m, d] = startDate.split('-').map(Number);
-    const baseDate = new Date(y, m - 1, d);
-    const daysInMonth = new Date(y, m, 0).getDate();
-    if (recurrence === 'diaria') {
-        for (let i = d + 1; i <= daysInMonth; i++) {
-            dates.push(`${y}-${String(m).padStart(2, '0')}-${String(i).padStart(2, '0')}`);
-        }
-    } else if (recurrence === 'quinzenal') {
-        const nextDate = new Date(baseDate);
-        nextDate.setDate(nextDate.getDate() + 15);
-        if (nextDate.getMonth() === m - 1) {
-            dates.push(`${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`);
-        }
-    }
-    return dates;
+// --- METAS (GAMIFICAÇÃO) ---
+function renderMetas() {
+    var ativas = state.metas.filter(m => !m.concluida);
+    var concluidas = state.metas.filter(m => m.concluida);
+    
+    document.getElementById('metasAtivasGrid').innerHTML = ativas.length ? ativas.map(m => renderMetaCard(m)).join('') : '<p style="color:var(--text-muted)">Nenhuma meta ativa.</p>';
+    document.getElementById('metasConcluidasGrid').innerHTML = concluidas.length ? concluidas.map(m => renderMetaCard(m)).join('') : '<p style="color:var(--text-muted)">Nenhuma meta concluída ainda.</p>';
 }
 
-// --- CATEGORIAS ---
-async function addCategory() {
+function renderMetaCard(m) {
+    var percent = Math.min(100, (m.valor_atual / m.valor_alvo) * 100);
+    var color = percent < 25 ? '#ef4444' : percent < 50 ? '#f59e0b' : percent < 75 ? '#84cc16' : percent < 100 ? '#10b981' : '#fbbf24';
+    var isConcluida = m.concluida ? 'concluida' : '';
+    var isAdmin = currentUserRole === 'admin';
+    
+    return `
+    <div class="meta-card ${isConcluida}">
+        <div class="meta-header">
+            <div class="meta-icon">🏆</div>
+            <div style="text-align:right;">
+                ${isAdmin ? `<button class="btn btn-sm btn-secondary" onclick="editMeta(${m.id})">✏️</button> <button class="btn btn-sm btn-danger" onclick="deleteMeta(${m.id})">️</button>` : ''}
+            </div>
+        </div>
+        <div class="meta-title">${m.titulo}</div>
+        <div class="meta-reward"> Recompensa: ${m.recompensa || 'Não definida'}</div>
+        <div class="progress-container">
+            <div class="progress-bar" style="width: ${percent}%; background-color: ${color};"></div>
+            <div class="progress-text">${percent.toFixed(1)}%</div>
+        </div>
+        <div class="meta-values">
+            <span>${formatMoney(m.valor_atual)}</span>
+            <span style="color:var(--text-muted)">/ ${formatMoney(m.valor_alvo)}</span>
+        </div>
+        ${!m.concluida && isAdmin ? `<button class="btn btn-primary btn-sm" style="width:100%" onclick="openContribModal(${m.id})">+ Adicionar Valor</button>` : ''}
+        ${m.concluida ? '<div style="text-align:center; color:#fbbf24; font-weight:bold; margin-top:0.5rem;">✨ META CONCLUÍDA! ✨</div>' : ''}
+        ${m.historico ? `<div class="historico-mini">${m.historico}</div>` : ''}
+    </div>`;
+}
+
+async function saveMeta() {
     if (currentUserRole !== 'admin') return;
-    const cat = document.getElementById('newCategory').value;
+    var id = document.getElementById('metaEditId').value;
+    var titulo = document.getElementById('metaTitulo').value;
+    var alvo = parseFloat(document.getElementById('metaAlvo').value);
+    var recompensa = document.getElementById('metaRecompensa').value;
+    if (!titulo || !alvo) return alert('Preencha título e valor!');
+    
+    if (id) {
+        await supabaseClient.from('metas').update({ titulo, valor_alvo: alvo, recompensa }).eq('id', parseFloat(id));
+    } else {
+        await supabaseClient.from('metas').insert([{ titulo, valor_alvo: alvo, valor_atual: 0, recompensa, concluida: false, historico: '' }]);
+    }
+    closeModal('modalMeta'); clearForm('modalMeta');
+    await loadFromSupabase(); renderMetas();
+}
+
+function editMeta(id) {
+    var m = state.metas.find(x => x.id === id);
+    document.getElementById('metaEditId').value = m.id;
+    document.getElementById('metaTitulo').value = m.titulo;
+    document.getElementById('metaAlvo').value = m.valor_alvo;
+    document.getElementById('metaRecompensa').value = m.recompensa || '';
+    document.getElementById('metaModalTitle').textContent = 'Editar Meta';
+    openModal('modalMeta');
+}
+
+function openContribModal(id) {
+    document.getElementById('contribMetaId').value = id;
+    document.getElementById('contribValor').value = '';
+    openModal('modalContribuicao');
+}
+
+async function salvarContribuicao() {
+    var id = parseFloat(document.getElementById('contribMetaId').value);
+    var valor = parseFloat(document.getElementById('contribValor').value);
+    var data = document.getElementById('contribData').value;
+    if (!valor) return alert('Valor inválido');
+    
+    var meta = state.metas.find(m => m.id === id);
+    var novoValor = meta.valor_atual + valor;
+    var concluida = novoValor >= meta.valor_alvo;
+    var historicoEntry = `+ ${formatMoney(valor)} em ${data.split('-').reverse().join('/')}\n`;
+    var novoHistorico = historicoEntry + (meta.historico || '');
+    
+    await supabaseClient.from('metas').update({ valor_atual: novoValor, concluida: concluida, historico: novoHistorico }).eq('id', id);
+    closeModal('modalContribuicao');
+    await loadFromSupabase(); renderMetas();
+    if (concluida) alert('🎉 Parabéns! Meta Concluída! Resgate sua recompensa: ' + meta.recompensa);
+}
+
+async function deleteMeta(id) {
+    if (!confirm('Excluir meta?')) return;
+    await supabaseClient.from('metas').delete().eq('id', id);
+    await loadFromSupabase(); renderMetas();
+}
+
+// --- CATEGORIAS & CSV ---
+async function addCategory() {
+    var cat = document.getElementById('newCategory').value;
     if (cat && !state.categories.includes(cat)) {
         await supabaseClient.from('categorias').insert([{ nome: cat }]);
-        state.categories.push(cat);
-        await addToHistory('Categoria Adicionada', `Nova categoria: "${cat}"`);
-        updateCategorySelect();
-        renderCategoryList();
+        await loadFromSupabase(); updateCategorySelect(); renderCategoryList();
         document.getElementById('newCategory').value = '';
     }
 }
-function updateCategorySelect() {
-    const select = document.getElementById('transCategory');
-    select.innerHTML = state.categories.map(c => `<option value="${c}">${c}</option>`).join('');
-}
+function updateCategorySelect() { document.getElementById('transCategory').innerHTML = state.categories.map(c => `<option value="${c}">${c}</option>`).join(''); }
 function renderCategoryList() {
-    const list = document.getElementById('categoryList');
-    const isAdmin = currentUserRole === 'admin';
-    list.innerHTML = state.categories.map(c => 
-        `<li style="display:flex; justify-content:space-between; padding:0.5rem; border-bottom:1px solid var(--border);">
-            ${c} ${isAdmin ? `<button class="btn btn-danger btn-sm" onclick="removeCategory('${c}')">X</button>` : ''}
-        </li>`
-    ).join('');
+    var isAdmin = currentUserRole === 'admin';
+    document.getElementById('categoryList').innerHTML = state.categories.map(c => `<li style="display:flex; justify-content:space-between; padding:0.5rem; border-bottom:1px solid var(--border);">${c} ${isAdmin ? `<button class="btn btn-danger btn-sm" onclick="removeCategory('${c}')">X</button>` : ''}</li>`).join('');
 }
 async function removeCategory(cat) {
-    if (currentUserRole !== 'admin') return;
     await supabaseClient.from('categorias').delete().eq('nome', cat);
-    state.categories = state.categories.filter(c => c !== cat);
-    await addToHistory('Categoria Removida', `Categoria "${cat}" removida`);
-    updateCategorySelect();
-    renderCategoryList();
+    await loadFromSupabase(); updateCategorySelect(); renderCategoryList();
 }
 
-// --- CSV ---
 async function exportData() {
-    if (currentUserRole !== 'admin') return;
-    let csv = 'type,id,date,title,category,amount,recurrence,priority,ranking,saldo\n';
-    state.transactions.forEach(t => { csv += `transaction,${t.id},${t.date},"${t.title}","${t.category}",${t.amount},${t.recurrence},,,\n`; });
-    state.caixinhas.forEach(c => { csv += `caixinha,${c.id},,"${c.title}",,,${c.saldo},${c.priority},${c.ranking}\n`; });
-    state.categories.forEach(c => { csv += `category,0,,,"${c}",,,,,\n`; });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'financeiro_backup_supabase.csv';
-    link.click();
-    await addToHistory('Exportação CSV', 'Dados exportados com sucesso');
+    var csv = 'type,id,date,title,category,amount,recurrence\n';
+    state.transactions.forEach(t => { csv += `transaction,${t.id},${t.date},"${t.title}","${t.category}",${t.amount},${t.recurrence}\n`; });
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'backup.csv'; link.click();
 }
 
 async function importData(event) {
-    if (currentUserRole !== 'admin') return;
-    const file = event.target.files[0];
-    if (!file) return;
-    if (!confirm('Isso apagará todos os dados atuais do banco e substituirá pelo arquivo CSV. Continuar?')) return;
-
-    const reader = new FileReader();
+    var file = event.target.files[0]; if (!file) return;
+    var reader = new FileReader();
     reader.onload = async function(e) {
-        const text = e.target.result;
-        const lines = text.split('\n').slice(1);
-        const newTrans = [], newCaix = [], newCats = [];
-
+        var lines = e.target.result.split('\n').slice(1);
+        var newTrans = [];
         lines.forEach(line => {
             if (!line.trim()) return;
-            const cols = line.split(',');
-            const type = cols[0];
-            if (type === 'transaction') {
-                newTrans.push({ tipo: cols[1] === 'entrada' ? 'entrada' : (cols[1] === 'saida' ? 'saida' : 'diario'), data: cols[2], titulo: cols[3].replace(/"/g, ''), categoria: cols[4].replace(/"/g, ''), valor: parseFloat(cols[5]), recorrencia: cols[6] });
-            } else if (type === 'caixinha') {
-                newCaix.push({ titulo: cols[3].replace(/"/g, ''), prioridade: cols[6].trim(), ranking: parseInt(cols[7]) || 1, saldo: parseFloat(cols[5]) });
-            } else if (type === 'category') {
-                newCats.push({ nome: cols[4].replace(/"/g, '') });
-            }
+            var cols = line.split(',');
+            if (cols[0] === 'transaction') newTrans.push({ tipo: cols[1], data: cols[2], titulo: cols[3].replace(/"/g, ''), categoria: cols[4].replace(/"/g, ''), valor: parseFloat(cols[5]), recorrencia: cols[6] });
         });
-
-        await supabaseClient.from('transacoes').delete().neq('id', 0);
-        await supabaseClient.from('caixinhas').delete().neq('id', 0);
-        await supabaseClient.from('categorias').delete().neq('id', 0);
-
         if (newTrans.length > 0) await supabaseClient.from('transacoes').insert(newTrans);
-        if (newCaix.length > 0) await supabaseClient.from('caixinhas').insert(newCaix);
-        if (newCats.length > 0) await supabaseClient.from('categorias').insert(newCats);
-
-        await addToHistory('Importação CSV', 'Dados importados com sucesso via CSV');
-        await loadFromSupabase();
-        renderTimeline();
-        updateCategorySelect();
-        alert('Dados importados com sucesso!');
+        await loadFromSupabase(); renderTimeline(); alert('Importado!');
     };
     reader.readAsText(file);
 }
 
 // --- UTILITÁRIOS ---
-function formatMoney(value) { return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
-function openModal(id) { 
-    document.getElementById(id).classList.add('active'); 
-    if (id === 'modalCategory') renderCategoryList();
-    if (id === 'modalTransaction' && !document.getElementById('transEditId').value) {
-        document.getElementById('transModalTitle').textContent = 'Adicionar Transação';
-        document.getElementById('btnDeleteTrans').classList.add('hidden');
-    }
-    if (id === 'modalCaixinha' && !document.getElementById('caixEditId').value) {
-        document.getElementById('caixModalTitle').textContent = 'Nova Caixinha';
-        document.getElementById('caixSaldoGroup').style.display = 'none';
-        document.getElementById('caixRanking').value = 1;
-    }
-}
-function closeModal(id) { 
-    document.getElementById(id).classList.remove('active'); 
-    if(id !== 'modalDayTrans') clearForm(id);
-}
-function clearForm(id) { 
-    document.querySelectorAll(`#${id} input`).forEach(i => {
-        if (i.type !== 'hidden') i.value = '';
-    });
-    document.querySelectorAll(`#${id} input[type="hidden"]`).forEach(i => i.value = '');
-}
+function formatMoney(v) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+function openModal(id) { document.getElementById(id).classList.add('active'); if(id==='modalMeta' && !document.getElementById('metaEditId').value) document.getElementById('metaModalTitle').textContent='Nova Meta'; }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); clearForm(id); }
+function clearForm(id) { document.querySelectorAll(`#${id} input`).forEach(i => { if(i.type!=='hidden') i.value=''; }); document.querySelectorAll(`#${id} input[type="hidden"]`).forEach(i => i.value=''); }
