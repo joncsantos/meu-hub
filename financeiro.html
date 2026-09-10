@@ -4,12 +4,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestão Financeira</title>
-    <!-- Biblioteca do Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Biblioteca do Gráfico -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Seu CSS (na raiz) -->
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* Estilos específicos para Metas Gamificadas */
+        .meta-card { background: var(--card); border-radius: 16px; box-shadow: var(--shadow); padding: 1.5rem; position: relative; overflow: hidden; border: 2px solid transparent; transition: all 0.3s; }
+        .meta-card:hover { transform: translateY(-5px); }
+        .meta-card.concluida { border-color: #fbbf24; background: linear-gradient(135deg, #fffbeb 0%, #ffffff 100%); }
+        .meta-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; }
+        .meta-icon { font-size: 2.5rem; filter: grayscale(100%); opacity: 0.5; transition: all 0.5s; }
+        .meta-card.concluida .meta-icon { filter: grayscale(0%); opacity: 1; transform: scale(1.1); }
+        .meta-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 0.2rem; }
+        .meta-reward { font-size: 0.85rem; color: var(--primary); font-style: italic; margin-bottom: 1rem; }
+        .progress-container { background: var(--bg); border-radius: 10px; height: 20px; overflow: hidden; margin-bottom: 0.5rem; position: relative; }
+        .progress-bar { height: 100%; transition: width 0.5s ease, background-color 0.5s; border-radius: 10px; }
+        .progress-text { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; color: white; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }
+        .meta-values { display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 1rem; }
+        .meta-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        .historico-mini { margin-top: 1rem; font-size: 0.8rem; color: var(--text-muted); max-height: 60px; overflow-y: auto; border-top: 1px solid var(--border); padding-top: 0.5rem; }
+        
+        /* Destaque dia atual */
+        .linha-hoje { background-color: #fff7ed !important; border-left: 4px solid var(--warning); }
+        
+        /* Saldo Atual Topo */
+        .saldo-atual-card { background: linear-gradient(135deg, var(--primary) 0%, #4338ca 100%); color: white; padding: 2rem; border-radius: 16px; text-align: center; margin-bottom: 2rem; box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3); }
+        .saldo-atual-card h3 { font-size: 1rem; opacity: 0.9; margin-bottom: 0.5rem; }
+        .saldo-atual-card .valor { font-size: 3rem; font-weight: 800; }
+    </style>
 </head>
 <body>
 
@@ -22,6 +44,7 @@
         <div class="header-actions admin-only">
             <button class="btn btn-secondary" onclick="openModal('modalTransaction')">+ Transação</button>
             <button class="btn btn-secondary" onclick="openModal('modalCaixinha')">+ Caixinha</button>
+            <button class="btn btn-secondary" onclick="openModal('modalMeta')">🎯 Nova Meta</button>
             <button class="btn btn-secondary" onclick="openModal('modalCategory')">Categorias</button>
             <button class="btn btn-secondary" onclick="exportData()">Exportar CSV</button>
             <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">Importar CSV</button>
@@ -30,27 +53,23 @@
     </div>
 
     <div class="app-tabs">
-        <div class="app-tab active" onclick="switchTab('tab-timeline', this)">📅 Linha do Tempo</div>
-        <div class="app-tab" onclick="switchTab('tab-performance', this)"> Desempenho</div>
-        <div class="app-tab admin-only" id="tab-history-btn" onclick="switchTab('tab-history', this)"> Histórico</div>
+        <div class="app-tab active" onclick="switchTab('tab-timeline', this)"> Linha do Tempo</div>
+        <div class="app-tab" onclick="switchTab('tab-performance', this)">📊 Desempenho</div>
+        <div class="app-tab" onclick="switchTab('tab-metas', this)"> Metas</div>
+        <div class="app-tab admin-only" id="tab-history-btn" onclick="switchTab('tab-history', this)">📜 Histórico</div>
     </div>
 
     <!-- Aba Linha do Tempo -->
     <div id="tab-timeline" class="tab-content active">
+        
+        <!-- NOVO: Card Saldo Atual no Topo -->
+        <div class="saldo-atual-card">
+            <h3>💰 Saldo Atual (Projeção)</h3>
+            <p class="valor" id="sumSaldoAtual">R$ 0,00</p>
+            <small id="saldoSubtitulo" style="opacity: 0.8;">Calculado até hoje</small>
+        </div>
+
         <div class="month-tabs" id="monthTabs"></div>
-
-        <div class="summary-grid">
-            <div class="summary-card"><h4>Total Entradas</h4><p id="sumEntrada" class="text-success">R$ 0,00</p></div>
-            <div class="summary-card"><h4>Saídas Fixas</h4><p id="sumSaida" class="text-danger">R$ 0,00</p></div>
-            <div class="summary-card"><h4>Total Diário</h4><p id="sumDiario" class="text-danger">R$ 0,00</p></div>
-            <div class="summary-card"><h4>Saída Total</h4><p id="sumSaidaTotal" class="text-danger">R$ 0,00</p></div>
-            <div class="summary-card"><h4>Performance</h4><p id="sumPerformance">R$ 0,00</p></div>
-        </div>
-
-        <div style="margin-bottom:1.5rem;">
-            <h3 style="margin-bottom:1rem;">🐷 Minhas Caixinhas</h3>
-            <div class="caixinhas-grid" id="caixinhasGrid"></div>
-        </div>
 
         <div class="table-container">
             <table>
@@ -67,6 +86,20 @@
                 <tbody id="timelineBody"></tbody>
             </table>
         </div>
+
+        <!-- Cards de Resumo movidos para baixo -->
+        <div class="summary-grid" style="margin-top: 2rem;">
+            <div class="summary-card"><h4>Total Entradas</h4><p id="sumEntrada" class="text-success">R$ 0,00</p></div>
+            <div class="summary-card"><h4>Saídas Fixas</h4><p id="sumSaida" class="text-danger">R$ 0,00</p></div>
+            <div class="summary-card"><h4>Total Diário</h4><p id="sumDiario" class="text-danger">R$ 0,00</p></div>
+            <div class="summary-card"><h4>Saída Total</h4><p id="sumSaidaTotal" class="text-danger">R$ 0,00</p></div>
+            <div class="summary-card"><h4>Performance</h4><p id="sumPerformance">R$ 0,00</p></div>
+        </div>
+
+        <div class="caixinhas-section" style="margin-top:2rem;">
+            <h3 style="margin-bottom:1rem;">🐷 Minhas Caixinhas</h3>
+            <div class="caixinhas-grid" id="caixinhasGrid"></div>
+        </div>
     </div>
 
     <!-- Aba Desempenho -->
@@ -75,6 +108,15 @@
         <div class="chart-section">
             <canvas id="financeChart"></canvas>
         </div>
+    </div>
+
+    <!-- Aba Metas -->
+    <div id="tab-metas" class="tab-content">
+        <h3 style="margin-bottom:1rem;">🚀 Metas Ativas</h3>
+        <div class="caixinhas-grid" id="metasAtivasGrid"></div>
+        
+        <h3 style="margin: 2rem 0 1rem 0;">🏆 Hall da Fama (Concluídas)</h3>
+        <div class="caixinhas-grid" id="metasConcluidasGrid"></div>
     </div>
 
     <!-- Aba Histórico -->
@@ -90,11 +132,19 @@
         <h2 id="transModalTitle">Adicionar Transação</h2>
         <input type="hidden" id="transEditId">
         <div class="form-group"><label>Tipo</label><select id="transType"><option value="entrada">Entrada</option><option value="saida">Saída (Fixa)</option><option value="diario">Diário</option></select></div>
-        <div class="form-group"><label>Data</label><input type="date" id="transDate"></div>
+        <div class="form-group"><label>Data Início</label><input type="date" id="transDate"></div>
+        <div class="form-group" id="groupRecorrencia"><label>Recorrência</label>
+            <select id="transRecurrence" onchange="toggleEndDate()">
+                <option value="nenhuma">Nenhuma</option>
+                <option value="diaria">Diária</option>
+                <option value="quinzenal">Quinzenal (15 dias)</option>
+                <option value="mensal">Mensal</option>
+            </select>
+        </div>
+        <div class="form-group hidden" id="groupEndDate"><label>Data de Término (para recorrência)</label><input type="date" id="transEndDate"></div>
         <div class="form-group"><label>Título</label><input type="text" id="transTitle"></div>
         <div class="form-group"><label>Categoria</label><select id="transCategory"></select></div>
         <div class="form-group"><label>Valor (R$)</label><input type="number" id="transAmount" step="0.01"></div>
-        <div class="form-group"><label>Recorrência</label><select id="transRecurrence"><option value="nenhuma">Nenhuma</option><option value="diaria">Diária</option><option value="quinzenal">Quinzenal (15 dias)</option><option value="mensal">Mensal</option></select></div>
         <div class="modal-actions">
             <button id="btnDeleteTrans" class="btn btn-danger hidden" onclick="confirmDeleteTransaction()">🗑️ Excluir</button>
             <div class="modal-actions-right">
@@ -110,10 +160,7 @@
     <div class="modal">
         <h2 id="dayTransTitle">Transações do Dia</h2>
         <ul class="day-trans-list" id="dayTransList"></ul>
-        <div class="modal-actions">
-            <div></div>
-            <button class="btn btn-secondary" onclick="closeModal('modalDayTrans')">Fechar</button>
-        </div>
+        <div class="modal-actions"><div></div><button class="btn btn-secondary" onclick="closeModal('modalDayTrans')">Fechar</button></div>
     </div>
 </div>
 
@@ -124,15 +171,32 @@
         <input type="hidden" id="caixEditId">
         <div class="form-group"><label>Título</label><input type="text" id="caixTitle"></div>
         <div class="form-group"><label>Prioridade</label><select id="caixPriority"><option value="muito">Muito Importante (60%)</option><option value="importante">Importante (30%)</option><option value="pouco">Pouco Importante (10%)</option></select></div>
-        <div class="form-group"><label>Ranking (1 = Maior prioridade na categoria)</label><input type="number" id="caixRanking" min="1" value="1"></div>
+        <div class="form-group"><label>Ranking</label><input type="number" id="caixRanking" min="1" value="1"></div>
         <div class="form-group" id="caixSaldoGroup" style="display:none;"><label>Saldo Atual (R$)</label><input type="number" id="caixSaldo" step="0.01"></div>
-        <div class="modal-actions">
-            <div></div>
-            <div class="modal-actions-right">
-                <button class="btn btn-secondary" onclick="closeModal('modalCaixinha')">Cancelar</button>
-                <button class="btn btn-primary admin-only" onclick="saveCaixinha()">Salvar</button>
-            </div>
-        </div>
+        <div class="modal-actions"><div></div><div class="modal-actions-right"><button class="btn btn-secondary" onclick="closeModal('modalCaixinha')">Cancelar</button><button class="btn btn-primary admin-only" onclick="saveCaixinha()">Salvar</button></div></div>
+    </div>
+</div>
+
+<!-- MODAL META -->
+<div class="modal-overlay" id="modalMeta">
+    <div class="modal">
+        <h2 id="metaModalTitle">Nova Meta</h2>
+        <input type="hidden" id="metaEditId">
+        <div class="form-group"><label>Título da Meta</label><input type="text" id="metaTitulo" placeholder="Ex: Viagem para Europa"></div>
+        <div class="form-group"><label>Valor Alvo (R$)</label><input type="number" id="metaAlvo" step="0.01"></div>
+        <div class="form-group"><label>Recompensa Pessoal</label><input type="text" id="metaRecompensa" placeholder="Ex: Comprar um tênis novo"></div>
+        <div class="modal-actions"><div></div><div class="modal-actions-right"><button class="btn btn-secondary" onclick="closeModal('modalMeta')">Cancelar</button><button class="btn btn-primary admin-only" onclick="saveMeta()">Salvar Meta</button></div></div>
+    </div>
+</div>
+
+<!-- MODAL CONTRIBUIÇÃO META -->
+<div class="modal-overlay" id="modalContribuicao">
+    <div class="modal">
+        <h2>Adicionar Contribuição</h2>
+        <input type="hidden" id="contribMetaId">
+        <div class="form-group"><label>Valor (R$)</label><input type="number" id="contribValor" step="0.01"></div>
+        <div class="form-group"><label>Data</label><input type="date" id="contribData"></div>
+        <div class="modal-actions"><div></div><div class="modal-actions-right"><button class="btn btn-secondary" onclick="closeModal('modalContribuicao')">Cancelar</button><button class="btn btn-primary" onclick="salvarContribuicao()">Adicionar</button></div></div>
     </div>
 </div>
 
@@ -142,14 +206,10 @@
         <h2>Gerenciar Categorias</h2>
         <div class="form-group" style="display:flex; gap:0.5rem;"><input type="text" id="newCategory" placeholder="Nova categoria"><button class="btn btn-primary admin-only" onclick="addCategory()">Add</button></div>
         <ul id="categoryList" style="list-style:none; margin-top:1rem;"></ul>
-        <div class="modal-actions">
-            <div></div>
-            <button class="btn btn-secondary" onclick="closeModal('modalCategory')">Fechar</button>
-        </div>
+        <div class="modal-actions"><div></div><button class="btn btn-secondary" onclick="closeModal('modalCategory')">Fechar</button></div>
     </div>
 </div>
 
-<!-- Seu JS (na raiz) -->
 <script src="financeiro.js"></script>
 </body>
 </html>
