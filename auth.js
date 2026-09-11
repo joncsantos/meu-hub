@@ -1,5 +1,5 @@
 // --- SENHAS ---
-var ADMIN_PASSWORD = 'torsanijuliaqwert123';
+var ADMIN_PASSWORD = 'torsaniqwert';
 var ADRIANE_PASSWORD = 'hugojulia';
 
 // --- LOGIN ---
