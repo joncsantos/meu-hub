@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tarefas</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .tarefas-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem; }
+        .tarefas-header h2 { color: var(--primary); }
+        
+        .contadores { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+        .contador-card { background: var(--card); padding: 1rem; border-radius: 12px; box-shadow: var(--shadow); text-align: center; }
+        .contador-card h3 { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.3rem; }
+        .contador-card .numero { font-size: 1.8rem; font-weight: 700; }
+        .contador-card.pendente .numero { color: var(--primary); }
+        .contador-card.concluida .numero { color: var(--success); }
+        .contador-card.atrasada .numero { color: var(--danger); }
+
+        .secao-tarefas { margin-bottom: 2rem; }
+        .secao-tarefas h3 { border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; margin-bottom: 1rem; color: var(--text); }
+        
+        .grupo-data { margin-bottom: 1.5rem; }
+        .grupo-data h4 { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        
+        .tarefa-card { background: var(--card); padding: 1rem; border-radius: 10px; box-shadow: var(--shadow); margin-bottom: 0.8rem; display: flex; align-items: flex-start; gap: 1rem; border-left: 5px solid var(--border); transition: transform 0.2s; }
+        .tarefa-card:hover { transform: translateX(5px); }
+        .tarefa-card.prioridade-alta { border-left-color: var(--danger); }
+        .tarefa-card.prioridade-media { border-left-color: var(--warning); }
+        .tarefa-card.prioridade-baixa { border-left-color: var(--success); }
+        .tarefa-card.atrasada { background: #fef2f2; }
+        .tarefa-card.concluida-card { opacity: 0.7; border-left-color: var(--text-muted); }
+        .tarefa-card.concluida-card .tarefa-titulo { text-decoration: line-through; }
+
+        .tarefa-check { margin-top: 0.3rem; }
+        .tarefa-check input { width: 20px; height: 20px; cursor: pointer; }
+        
+        .tarefa-info { flex: 1; }
+        .tarefa-titulo { font-weight: 600; font-size: 1.1rem; margin-bottom: 0.3rem; }
+        .tarefa-obs { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem; font-style: italic; }
+        .tarefa-datas { display: flex; gap: 1rem; font-size: 0.8rem; color: var(--text-muted); flex-wrap: wrap; }
+        .badge-status { padding: 0.2rem 0.5rem; border-radius: 12px; font-weight: 600; font-size: 0.75rem; }
+        .badge-atrasada { background: var(--danger); color: white; }
+        .badge-urgente { background: var(--warning); color: black; }
+        .badge-normal { background: var(--bg); color: var(--text-muted); }
+        .badge-concluida { background: var(--success); color: white; }
+
+        .tarefa-actions { display: flex; flex-direction: column; gap: 0.3rem; }
+        .tarefa-actions button { padding: 0.3rem 0.5rem; font-size: 0.8rem; }
+
+        .admin-only { display: none; }
+        body.admin-mode .admin-only { display: inline-flex; }
+    </style>
+</head>
+<body>
+
+<div class="container" style="max-width: 900px; margin: 0 auto; padding: 1rem;">
+    <div class="tarefas-header">
+        <div>
+            <button class="btn btn-secondary btn-sm" onclick="window.location.href='index.html'">← Voltar ao Hub</button>
+            <h2 style="margin-top:0.5rem">✅ Gestão de Tarefas <span id="userBadge" style="font-size:0.8rem; background:var(--bg); padding:0.2rem 0.5rem; border-radius:12px; color:var(--text-muted);"></span></h2>
+        </div>
+        <button class="btn btn-primary admin-only" onclick="abrirModalNovaTarefa()">+ Nova Tarefa</button>
+    </div>
+
+    <div class="contadores">
+        <div class="contador-card pendente"><h3>Pendentes</h3><p class="numero" id="countPendentes">0</p></div>
+        <div class="contador-card atrasada"><h3>Atrasadas</h3><p class="numero" id="countAtrasadas">0</p></div>
+        <div class="contador-card concluida"><h3>Concluídas</h3><p class="numero" id="countConcluidas">0</p></div>
+    </div>
+
+    <div id="tarefasPendentesContainer" class="secao-tarefas">
+        <h3> Tarefas Pendentes</h3>
+        <div id="listaPendentes"></div>
+    </div>
+
+    <div id="tarefasConcluidasContainer" class="secao-tarefas">
+        <h3> Tarefas Concluídas</h3>
+        <div id="listaConcluidas"></div>
+    </div>
+</div>
+
+<!-- MODAL NOVA/EDITAR TAREFA -->
+<div class="modal-overlay" id="modalTarefa">
+    <div class="modal">
+        <h2 id="modalTarefaTitulo">Nova Tarefa</h2>
+        <input type="hidden" id="tarefaId">
+        <div class="form-group"><label>Título</label><input type="text" id="tarefaTitulo" placeholder="O que precisa ser feito?"></div>
+        <div class="form-group"><label>Observação</label><textarea id="tarefaObs" rows="3" style="width:100%; padding:0.7rem; border:1px solid var(--border); border-radius:8px; font-size:1rem; background:var(--bg); resize:vertical;"></textarea></div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+            <div class="form-group"><label>Data Início</label><input type="date" id="tarefaInicio"></div>
+            <div class="form-group"><label>Data Fim (Prazo)</label><input type="date" id="tarefaFim"></div>
+        </div>
+        <div class="form-group"><label>Prioridade</label>
+            <select id="tarefaPrioridade">
+                <option value="alta">🔴 Alta (Urgente)</option>
+                <option value="media" selected>🟡 Média (Importante)</option>
+                <option value="baixa">🟢 Baixa (Pode esperar)</option>
+            </select>
+        </div>
+        <div class="modal-actions">
+            <button id="btnDeleteTarefa" class="btn btn-danger hidden" onclick="confirmarExclusao()">🗑️ Excluir</button>
+            <div class="modal-actions-right">
+                <button class="btn btn-secondary" onclick="fecharModalTarefa()">Cancelar</button>
+                <button class="btn btn-primary admin-only" onclick="salvarTarefa()">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="tarefas.js"></script>
+</body>
+</html>
