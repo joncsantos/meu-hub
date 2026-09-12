@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fé</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .fe-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem; }
+        .fe-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 2px solid var(--border); flex-wrap: wrap; }
+        .fe-tab { padding: 0.8rem 1.5rem; cursor: pointer; font-weight: 500; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+        .fe-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+        .fe-tab-content { display: none; }
+        .fe-tab-content.active { display: block; }
+
+        /* Timer */
+        .timer-container { text-align: center; padding: 3rem 1rem; background: var(--card); border-radius: 16px; box-shadow: var(--shadow); }
+        .timer-display { font-size: 4rem; font-weight: 800; color: var(--primary); margin: 1rem 0; font-variant-numeric: tabular-nums; }
+        .timer-status { font-size: 1.1rem; color: var(--text-muted); margin-bottom: 2rem; }
+        .btn-timer { padding: 1rem 3rem; font-size: 1.2rem; border-radius: 50px; }
+        .btn-iniciar { background: var(--success); color: white; }
+        .btn-finalizar { background: var(--danger); color: white; }
+
+        /* Calendário */
+        .calendario-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+        .calendario-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+        .calendario-dia-semana { text-align: center; font-weight: 600; font-size: 0.8rem; color: var(--text-muted); padding: 0.5rem; }
+        .calendario-dia { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-weight: 500; background: var(--bg); border: 1px solid var(--border); }
+        .calendario-dia.orou { background: #dcfce7; border-color: #22c55e; color: #166534; }
+        .calendario-dia.nao-orou { background: #fee2e2; border-color: #ef4444; color: #991b1b; }
+        .calendario-dia.futuro { background: var(--bg); opacity: 0.5; }
+        .legenda { display: flex; gap: 1rem; margin-top: 1rem; font-size: 0.85rem; color: var(--text-muted); justify-content: center; }
+        .legenda-item { display: flex; align-items: center; gap: 0.3rem; }
+        .legenda-cor { width: 12px; height: 12px; border-radius: 3px; }
+
+        /* Estudos */
+        .estudos-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; }
+        .tema-card { background: var(--card); padding: 1.5rem; border-radius: 12px; box-shadow: var(--shadow); cursor: pointer; transition: transform 0.2s; border-left: 4px solid var(--primary); }
+        .tema-card:hover { transform: translateY(-3px); }
+        .texto-card { background: var(--card); padding: 1.5rem; border-radius: 12px; box-shadow: var(--shadow); margin-bottom: 1rem; cursor: pointer; }
+        .texto-card:hover { background: var(--bg); }
+        .leitura-container { background: var(--card); padding: 2rem; border-radius: 12px; box-shadow: var(--shadow); line-height: 1.8; font-size: 1.1rem; max-height: 70vh; overflow-y: auto; }
+        
+        /* Editor de Texto */
+        .editor-toolbar { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; padding: 0.5rem; background: var(--bg); border-radius: 8px; }
+        .editor-toolbar button { padding: 0.3rem 0.8rem; background: var(--card); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .editor-area { min-height: 200px; padding: 1rem; border: 1px solid var(--border); border-radius: 8px; background: white; color: black; outline: none; }
+        
+        .admin-only { display: none; }
+        body.admin-mode .admin-only { display: inline-flex; }
+    </style>
+</head>
+<body>
+
+<div class="container" style="max-width: 1000px; margin: 0 auto; padding: 1rem;">
+    <div class="fe-header">
+        <div>
+            <button class="btn btn-secondary btn-sm" onclick="window.location.href='index.html'">← Voltar ao Hub</button>
+            <h2 style="margin-top:0.5rem">🙏 Fé <span id="userBadge" style="font-size:0.8rem; background:var(--bg); padding:0.2rem 0.5rem; border-radius:12px; color:var(--text-muted);"></span></h2>
+        </div>
+    </div>
+
+    <div class="fe-tabs">
+        <div class="fe-tab active" onclick="switchFeTab('tab-oracao', this)">⏱️ Oração</div>
+        <div class="fe-tab" onclick="switchFeTab('tab-calendario', this)">📅 Calendário</div>
+        <div class="fe-tab" onclick="switchFeTab('tab-estudos', this)">📖 Estudos</div>
+    </div>
+
+    <!-- ABA ORAÇÃO -->
+    <div id="tab-oracao" class="fe-tab-content active">
+        <div class="timer-container">
+            <h3 id="timerStatusText" class="timer-status">Pronto para orar</h3>
+            <div class="timer-display" id="timerDisplay">00:00:00</div>
+            <button id="btnTimerAction" class="btn btn-timer btn-iniciar" onclick="toggleTimer()">Iniciar Oração</button>
+        </div>
+    </div>
+
+    <!-- ABA CALENDÁRIO -->
+    <div id="tab-calendario" class="fe-tab-content">
+        <div class="calendario-header">
+            <button class="btn btn-secondary btn-sm" onclick="mudarMes(-1)"></button>
+            <h3 id="calendarioMesAno" style="margin:0;"></h3>
+            <button class="btn btn-secondary btn-sm" onclick="mudarMes(1)">▶</button>
+        </div>
+        <div class="calendario-grid" id="calendarioGrid"></div>
+        <div class="legenda">
+            <div class="legenda-item"><div class="legenda-cor" style="background:#dcfce7; border:1px solid #22c55e;"></div> Orei</div>
+            <div class="legenda-item"><div class="legenda-cor" style="background:#fee2e2; border:1px solid #ef4444;"></div> Não orei</div>
+        </div>
+    </div>
+
+    <!-- ABA ESTUDOS -->
+    <div id="tab-estudos" class="fe-tab-content">
+        <div id="estudosViewTemas">
+            <div style="margin-bottom:1rem; display:flex; justify-content:flex-end;">
+                <button class="btn btn-primary admin-only" onclick="abrirModalTema()">+ Novo Tema</button>
+            </div>
+            <div class="estudos-grid" id="listaTemas"></div>
+        </div>
+
+        <div id="estudosViewTextos" style="display:none;">
+            <button class="btn btn-secondary btn-sm" onclick="voltarParaTemas()" style="margin-bottom:1rem;">← Voltar para Temas</button>
+            <h3 id="tituloTemaAtual" style="margin-bottom:1rem;"></h3>
+            <div style="margin-bottom:1rem; display:flex; justify-content:flex-end;">
+                <button class="btn btn-primary admin-only" onclick="abrirModalTexto()">+ Novo Estudo</button>
+            </div>
+            <div id="listaTextos"></div>
+        </div>
+
+        <div id="estudosViewLeitura" style="display:none;">
+            <button class="btn btn-secondary btn-sm" onclick="voltarParaTextos()" style="margin-bottom:1rem;">← Voltar para Lista</button>
+            <h3 id="tituloLeitura" style="margin-bottom:1rem;"></h3>
+            <div class="leitura-container" id="conteudoLeitura"></div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL TEMA -->
+<div class="modal-overlay" id="modalTema">
+    <div class="modal">
+        <h2>Novo Tema de Estudo</h2>
+        <div class="form-group"><label>Título do Tema</label><input type="text" id="temaTitulo" placeholder="Ex: Salmos, Família..."></div>
+        <div class="modal-actions"><div></div><div class="modal-actions-right"><button class="btn btn-secondary" onclick="closeModal('modalTema')">Cancelar</button><button class="btn btn-primary" onclick="salvarTema()">Salvar</button></div></div>
+    </div>
+</div>
+
+<!-- MODAL TEXTO -->
+<div class="modal-overlay" id="modalTexto">
+    <div class="modal" style="max-width: 800px;">
+        <h2>Novo Estudo</h2>
+        <div class="form-group"><label>Título do Estudo</label><input type="text" id="textoTitulo" placeholder="Ex: Salmo 23 - O Senhor é meu pastor"></div>
+        <div class="form-group">
+            <label>Conteúdo</label>
+            <div class="editor-toolbar">
+                <button type="button" onclick="document.execCommand('bold')"><b>B</b></button>
+                <button type="button" onclick="document.execCommand('italic')"><i>I</i></button>
+                <button type="button" onclick="document.execCommand('underline')"><u>U</u></button>
+            </div>
+            <div id="textoConteudo" class="editor-area" contenteditable="true"></div>
+        </div>
+        <div class="modal-actions"><div></div><div class="modal-actions-right"><button class="btn btn-secondary" onclick="closeModal('modalTexto')">Cancelar</button><button class="btn btn-primary" onclick="salvarTexto()">Salvar</button></div></div>
+    </div>
+</div>
+
+<script src="fe.js"></script>
+</body>
+</html>
