@@ -26,8 +26,9 @@
         .calendario-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
         .calendario-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
         .calendario-dia-semana { text-align: center; font-weight: 600; font-size: 0.8rem; color: var(--text-muted); padding: 0.5rem; }
-        .calendario-dia { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-weight: 500; background: var(--bg); border: 1px solid var(--border); }
-        .calendario-dia.orou { background: #dcfce7; border-color: #22c55e; color: #166534; }
+        .calendario-dia { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 8px; font-weight: 500; background: var(--bg); border: 1px solid var(--border); }
+        .calendario-dia.orou { background: #dcfce7; border-color: #22c55e; color: #166534; cursor: pointer; transition: transform 0.2s; }
+        .calendario-dia.orou:hover { transform: scale(1.05); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .calendario-dia.nao-orou { background: #fee2e2; border-color: #ef4444; color: #991b1b; }
         .calendario-dia.futuro { background: var(--bg); opacity: 0.5; }
         .legenda { display: flex; gap: 1rem; margin-top: 1rem; font-size: 0.85rem; color: var(--text-muted); justify-content: center; }
@@ -79,13 +80,13 @@
     <!-- ABA CALENDÁRIO -->
     <div id="tab-calendario" class="fe-tab-content">
         <div class="calendario-header">
-            <button class="btn btn-secondary btn-sm" onclick="mudarMes(-1)"></button>
+            <button class="btn btn-secondary btn-sm" onclick="mudarMes(-1)">◀</button>
             <h3 id="calendarioMesAno" style="margin:0;"></h3>
             <button class="btn btn-secondary btn-sm" onclick="mudarMes(1)">▶</button>
         </div>
         <div class="calendario-grid" id="calendarioGrid"></div>
         <div class="legenda">
-            <div class="legenda-item"><div class="legenda-cor" style="background:#dcfce7; border:1px solid #22c55e;"></div> Orei</div>
+            <div class="legenda-item"><div class="legenda-cor" style="background:#dcfce7; border:1px solid #22c55e;"></div> Orei (Clique para ver/excluir)</div>
             <div class="legenda-item"><div class="legenda-cor" style="background:#fee2e2; border:1px solid #ef4444;"></div> Não orei</div>
         </div>
     </div>
@@ -112,6 +113,18 @@
             <button class="btn btn-secondary btn-sm" onclick="voltarParaTextos()" style="margin-bottom:1rem;">← Voltar para Lista</button>
             <h3 id="tituloLeitura" style="margin-bottom:1rem;"></h3>
             <div class="leitura-container" id="conteudoLeitura"></div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL LISTA DE ORAÇÕES DO DIA -->
+<div class="modal-overlay" id="modalListaOracoes">
+    <div class="modal">
+        <h2 id="tituloModalOracoes">Orações do Dia</h2>
+        <div id="listaOracoesDoDia" style="max-height: 400px; overflow-y: auto;"></div>
+        <div class="modal-actions">
+            <div></div>
+            <button class="btn btn-secondary" onclick="closeModal('modalListaOracoes')">Fechar</button>
         </div>
     </div>
 </div>
