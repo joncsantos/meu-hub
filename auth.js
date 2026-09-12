@@ -28,10 +28,11 @@ function renderHubCards() {
     var grid = document.getElementById('hubGrid');
     var html = '';
     
-    // Cards visíveis para todos
+    // Cards visíveis para todos (Admin e Adriane)
     html += '<a href="financeiro.html" class="hub-card"><div class="icon">💰</div><h3>Gestão Financeira</h3></a>';
     html += '<a href="comissoes.html" class="hub-card"><div class="icon">💼</div><h3>Comissões</h3></a>';
     html += '<a href="tarefas.html" class="hub-card"><div class="icon">✅</div><h3>Tarefas</h3></a>';
+    html += '<a href="fe.html" class="hub-card"><div class="icon">🙏</div><h3>Fé</h3></a>';
     
     // Cards visíveis apenas para o Administrador
     if (role === 'admin') {
